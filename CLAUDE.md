@@ -77,6 +77,7 @@ src/
     budget.js           budget line suggestions, rolling averages, item history,
                         spentByLine (the one place spending per line is worked out)
     pacing.js           left to spend, daily allowance, ahead of pace, bills paid
+    recurring.js        cycles, seen/late, auto-log, spotting repeat charges
     units.js            unit conversion and price normalization
     deals.js            store deals and effective price
     receipt.js          OCR text to items
@@ -119,6 +120,12 @@ All app data is scoped by `household_id`.
   unique per household and pattern. A pattern is normally a merchant key.
 - `import_profiles` (signature = lower-cased header row, name, mapping):
   which CSV column is which, per bank layout.
+- `recurring_items` (0.8.0; name, merchant_pattern, amount, amount_varies,
+  cadence 'monthly' | 'yearly', day_of_month, month_of_year, budget_line_id,
+  autolog, status 'active' | 'paused' | 'dismissed'). 'dismissed' is a
+  suggestion the household rejected; keep it so it is not suggested again.
+  Auto-logged spending is a transaction with source 'recurring' and
+  import_id `rec:<item id>:<cycle>` (cycle "YYYY-MM" or "YYYY").
 - `kids`, `kid_expenses` (kid_id, amount, category, date)
 - `shopping_items` (0.4.0; id text, name, qty, unit, notes, prices jsonb,
   checked, added, created_by, updated_at by trigger). One row per item, in
@@ -210,6 +217,19 @@ the save goes out (see `pendingPrices` in GroceryTab).
   up, add it as a known layout with a test built from its header row and a
   few made-up lines, never from real transactions.
 
+## Recurring
+
+- A charge pays a cycle if its merchant or description matches the item's
+  pattern (`matchesPattern`, same as merchant rules), it is within 7 days of
+  the due date, and the amount is within 15% (or the item varies). Day 31 is
+  clamped to the month's last day.
+- Auto-log runs in MainApp after loading and whenever the items change,
+  never on every transaction change. It relies on the unique import_id, so
+  running twice or on two phones is harmless. The importer treats `rec:`
+  transactions like hand-entered ones when looking for duplicates.
+- Suggestions: same merchant key in 2+ of the last four months, about once
+  a month, amounts within 15% of the median, days within 6 of the median.
+
 ## Rules that already caused bugs
 
 - A transaction counts against a budget line only through an explicit
@@ -257,7 +277,8 @@ the save goes out (see `pendingPrices` in GroceryTab).
    Custom domain on Netlify is the owner's step (see "Domain").
 5. 0.6.0: statement import and merchant rules. Done.
    0.7.0: left to spend, daily pace, bills paid. Done.
-   Then, as chosen: recurring bills, rollover/sinking funds/month-end review.
+   0.8.0: recurring bills and subscriptions. Done.
+   Then, as chosen: rollover/sinking funds/month-end review.
 6. Product basics: custom SMTP for auth email, privacy policy and terms,
    account deletion, data export.
 7. Payments: Stripe Checkout, a Supabase Edge Function for webhooks,

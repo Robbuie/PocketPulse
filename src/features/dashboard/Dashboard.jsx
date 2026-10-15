@@ -5,9 +5,11 @@ import { catIcon, f$, fshort, monthKey } from '../../lib/format';
 import { spentByLine } from '../../lib/budget';
 import { totalMonthlyIncome } from '../../lib/income';
 import { monthPace } from '../../lib/pacing';
+import { summarize } from '../../lib/recurring';
+import { ComingUp } from './ComingUp';
 import { LeftToSpend } from './LeftToSpend';
 
-export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName,onOpenBudget}){
+export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName,onOpenBudget,recurring=[],onOpenRecurring}){
   const totalDebt=debts.reduce((s,d)=>s+(parseFloat(d.balance)||0),0);
   // Income: prefer income_sources derived total, fall back to manual budget.income
   const incomeSources=budget.income_sources||[];
@@ -19,6 +21,7 @@ export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName,o
   // "Left this month" = income minus everything actually spent (including logged debt payments)
   const netActual=income-monthSpend-monthKidSpend;
   const recent=transactions.slice(0,4);
+  const comingUp=useMemo(()=>summarize(recurring,transactions).upcoming,[recurring,transactions]);
   const pace=useMemo(()=>monthPace(budget.expenses,spentByLine(transactions,thisMonth)),[budget.expenses,transactions,thisMonth]);
   const chartRef=useRef(null);const chartInst=useRef(null);
   const catSpend=useMemo(()=>{
@@ -43,6 +46,7 @@ export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName,o
       {[{label:'Total Debt',val:f$(totalDebt),color:'var(--red)'},{label:'Spent This Month',val:f$(monthSpend+monthKidSpend),color:'var(--amber)'},{label:'Left This Month',val:income>0?f$(netActual):'-',color:netActual>=0?'var(--green)':'var(--red)'},{label:'Family Spending',val:f$(monthKidSpend),color:'var(--purple)'}].map(m=>(<div key={m.label} className="mcard"><div className="mlabel">{m.label}</div><div className="mval" style={{color:m.color,fontSize:19}}>{m.val}</div></div>))}
     </div>
     <LeftToSpend pace={pace} onOpenBudget={onOpenBudget}/>
+    <ComingUp rows={comingUp} onOpen={onOpenRecurring}/>
     {budget.committed_strategy&&<div className="commit-badge"><span style={{fontSize:20}}>✅</span><div><div style={{fontWeight:700,fontSize:13}}>Committed to {budget.committed_strategy==='avalanche'?'Avalanche':'Snowball'} Plan</div><div style={{fontSize:12,color:'var(--muted)'}}>Paying {f$(budget.committed_payment||0,2)}/mo toward debt · included in budget above</div></div></div>}
     <div className="cgrid" style={{marginBottom:14}}>
       <div className="card">

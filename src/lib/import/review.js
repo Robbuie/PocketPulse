@@ -54,7 +54,9 @@ export function titleCase(s) {
 export function buildReview(entries, { account, existing = [], rules = [], lines = [] }) {
   const ids = importIds(entries, account);
   const imported = new Set(existing.map((t) => t.import_id).filter(Boolean));
-  const unmatched = existing.filter((t) => !t.import_id);
+  // Entered by hand, or logged automatically by a recurring item (0.8.0):
+  // either may be the same charge the statement now shows.
+  const unmatched = existing.filter((t) => !t.import_id || t.import_id.startsWith('rec:'));
   const lineById = new Map(lines.map((l) => [l.id, l]));
 
   return entries.map((entry, i) => {

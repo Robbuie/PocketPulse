@@ -135,3 +135,22 @@ export async function apiSaveImportProfile(profile,hid){
   const{error}=await sb.from('import_profiles').upsert({...profile,household_id:hid},{onConflict:'household_id,signature'});
   return{error};
 }
+
+// Recurring bills and subscriptions (migration 0008).
+const RECURRING_FIELDS='id,name,merchant_pattern,amount,amount_varies,cadence,day_of_month,month_of_year,budget_line_id,autolog,status';
+export async function apiFetchRecurring(hid){
+  const{data,error}=await sb.from('recurring_items').select(RECURRING_FIELDS).eq('household_id',hid).order('name');
+  return{data:data||[],error};
+}
+export async function apiSaveRecurring(item,hid,userId){
+  const{id,...fields}=item;
+  const q=id
+    ?sb.from('recurring_items').update(fields).eq('id',id)
+    :sb.from('recurring_items').insert({...fields,household_id:hid,created_by:userId});
+  const{data,error}=await q.select(RECURRING_FIELDS).single();
+  return{data,error};
+}
+export async function apiDeleteRecurring(id){
+  const{error}=await sb.from('recurring_items').delete().eq('id',id);
+  return{error};
+}

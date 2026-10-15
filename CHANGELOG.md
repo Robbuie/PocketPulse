@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.0 - recurring bills and subscriptions
+
+Needs `supabase/migrations/0008_recurring.sql` run in the Supabase SQL Editor
+before this version is deployed.
+
+- **Money > Recurring** lists what is expected every month or year: rent,
+  phone, insurance, each subscription. Each shows whether this period's
+  charge has come through (a charge from that merchant at about that amount
+  within a week of the due date), is due soon, or has not been seen yet
+  after its due date.
+- **What it all costs**: recurring total per month and per year, with
+  yearly charges like Amazon Prime counted once a year.
+- **Spotted for you.** A merchant charged about the same amount around the
+  same day in at least two recent months is suggested, with its budget line,
+  ready to add. "Not recurring" stops it being suggested again.
+- **Log it for me** for things that never show up in an import, like rent
+  paid by check: it is entered as spending on its due date when the app is
+  next opened. If both phones open the app that day it is still entered once,
+  and if the real charge later arrives in an import it is flagged as a
+  possible duplicate.
+- **Home shows what is coming up** in the next week, and anything past due
+  that has not come through.
+
+
 ## 0.7.0 - left to spend
 
 No database changes.

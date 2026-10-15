@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { RecurringTab } from './features/recurring/RecurringTab';
+import { dueAutologs } from './lib/recurring';
 import { BudgetTab } from './features/budget/BudgetTab';
 import { Dashboard } from './features/dashboard/Dashboard';
 import { DebtsTab } from './features/debts/DebtsTab';
@@ -8,7 +10,7 @@ import { SettingsTab } from './features/settings/SettingsTab';
 import { GroceryTab } from './features/shopping/GroceryTab';
 import { ReceiptScanner } from './features/spending/ReceiptScanner';
 import { TransactionsTab } from './features/spending/TransactionsTab';
-import { apiFetchBudget, apiFetchDebts, apiFetchKidExpenses, apiFetchKids, apiFetchTransactions } from './lib/api';
+import { apiFetchBudget, apiFetchDebts, apiFetchKidExpenses, apiFetchKids, apiFetchRecurring, apiFetchTransactions, apiImportTransactions } from './lib/api';
 import { sb } from './lib/supabase';
 import { useOnline } from './lib/useOnline';
 
@@ -17,6 +19,7 @@ export function MainApp({user,profile,household}){
   const[debts,setDebts]=useState([]);const[transactions,setTransactions]=useState([]);
   const[budget,setBudget]=useState({income:0,expenses:[],paycheck_frequency:'biweekly',committed_strategy:null,committed_payment:0});
   const[kids,setKids]=useState([]);const[kidExpenses,setKidExpenses]=useState([]);
+  const[recurring,setRecurring]=useState([]);
   const[showScanner,setShowScanner]=useState(false);const[loading,setLoading]=useState(true);
   const hid=household?.id;const uid2=user?.id;
   const online=useOnline();
@@ -29,8 +32,23 @@ export function MainApp({user,profile,household}){
       apiFetchBudget(hid).then(d=>{if(d)setBudget({income:d.income||0,expenses:d.expenses||[],...d})}),
       apiFetchKids(hid).then(setKids),
       apiFetchKidExpenses(hid).then(setKidExpenses),
+      apiFetchRecurring(hid).then(({data})=>setRecurring(data)),
     ]).finally(()=>setLoading(false));
   },[hid]);
+
+  // Recurring items set to log themselves are entered once their due date
+  // has come with no matching charge. Runs after loading and whenever the
+  // items change; the unique import_id makes a repeat, or the other phone
+  // doing the same, a no-op.
+  useEffect(()=>{
+    if(loading||!hid)return;
+    const due=dueAutologs(recurring,transactions,budget.expenses);
+    if(!due.length)return;
+    apiImportTransactions(due,hid,uid2).then(({data})=>{
+      if(data?.length)setTransactions(prev=>{const have=new Set(prev.map(t=>t.id));return[...data.filter(r=>!have.has(r.id)),...prev]});
+    });
+  // transactions is read, not watched: watching it would re-run on every change.
+  },[loading,recurring,hid]);
 
   useEffect(()=>{
     if(!sb||!hid)return;
@@ -51,7 +69,7 @@ export function MainApp({user,profile,household}){
   ];
 
   // money sub-tab state
-  const[moneySub,setMoneySub]=useState('budget'); // budget | paycheck
+  const[moneySub,setMoneySub]=useState('budget'); // budget | paycheck | recurring
   // more drawer state
   const[showMore,setShowMore]=useState(false);
 
@@ -75,14 +93,14 @@ export function MainApp({user,profile,household}){
 
   // Which bnav item should appear active
   const activeBnav=
-    tab==='budget'||tab==='paycheck'?'money':
+    tab==='budget'||tab==='paycheck'||tab==='recurring'?'money':
     ['kids','grocery','settings'].includes(tab)?'more':
     tab;
 
   // All desktop nav tabs (header)
   const DESKTOP_TABS=[
     {id:'dashboard',l:'Dashboard'},{id:'transactions',l:'Spending'},
-    {id:'budget',l:'Budget'},{id:'paycheck',l:'Paychecks'},
+    {id:'budget',l:'Budget'},{id:'paycheck',l:'Paychecks'},{id:'recurring',l:'Recurring'},
     {id:'debts',l:'Debts'},{id:'kids',l:'Family'},
     {id:'grocery',l:'Shopping'},{id:'settings',l:'Settings'},
   ];
@@ -95,17 +113,19 @@ export function MainApp({user,profile,household}){
         <div style={{display:'flex',gap:6,marginBottom:16}}>
           <button className={`btn ${moneySub==='budget'?'btn-p':'btn-s'}`} style={{flex:1}} onClick={()=>setMoneySub('budget')}>📊 Budget</button>
           <button className={`btn ${moneySub==='paycheck'?'btn-p':'btn-s'}`} style={{flex:1}} onClick={()=>setMoneySub('paycheck')}>💰 Paychecks</button>
+          <button className={`btn ${moneySub==='recurring'?'btn-p':'btn-s'}`} style={{flex:1}} onClick={()=>setMoneySub('recurring')}>Recurring</button>
         </div>
-        {moneySub==='budget'
-          ?<BudgetTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts} transactions={transactions} kids={kids} kidExpenses={kidExpenses}/>
-          :<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>}
+        {moneySub==='budget'&&<BudgetTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts} transactions={transactions} kids={kids} kidExpenses={kidExpenses}/>}
+        {moneySub==='paycheck'&&<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>}
+        {moneySub==='recurring'&&<RecurringTab recurring={recurring} setRecurring={setRecurring} transactions={transactions} budget={budget} householdId={hid} userId={uid2}/>}
       </div>
     );
     switch(tab){
-      case'dashboard':return<Dashboard debts={debts} transactions={transactions} budget={budget} kids={kids} kidExpenses={kidExpenses} userName={profile?.name} onOpenBudget={()=>{setMoneySub('budget');setTab('money')}}/>;
+      case'dashboard':return<Dashboard debts={debts} transactions={transactions} budget={budget} kids={kids} kidExpenses={kidExpenses} userName={profile?.name} onOpenBudget={()=>{setMoneySub('budget');setTab('money')}} recurring={recurring} onOpenRecurring={()=>{setMoneySub('recurring');setTab('money')}}/>;
       case'transactions':return<TransactionsTab transactions={transactions} setTransactions={setTransactions} householdId={hid} userId={uid2} openScanner={()=>setShowScanner(true)} budget={budget} kids={kids} kidExpenses={kidExpenses} setKidExpenses={setKidExpenses}/>;
       case'budget':return<BudgetTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts} transactions={transactions} kids={kids} kidExpenses={kidExpenses}/>;
       case'paycheck':return<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>;
+      case'recurring':return<RecurringTab recurring={recurring} setRecurring={setRecurring} transactions={transactions} budget={budget} householdId={hid} userId={uid2}/>;
       case'debts':return<DebtsTab debts={debts} setDebts={setDebts} householdId={hid} budget={budget} setBudget={setBudget} transactions={transactions} setTransactions={setTransactions} userId={uid2}/>;
       case'kids':return<FamilyTab kids={kids} setKids={setKids} kidExpenses={kidExpenses} setKidExpenses={setKidExpenses} householdId={hid} userId={uid2}/>;
       case'grocery':return<GroceryTab budget={budget} setBudget={setBudget} householdId={hid} userId={uid2}/>;

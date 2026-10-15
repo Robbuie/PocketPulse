@@ -55,6 +55,11 @@ const TXS = [
   { id: 't2', amount: 15.99, category: '📺 Subscriptions', merchant: 'Streaming', date: `${month}-04`, user_id: 'u2' },
   { id: 't3', amount: 120, category: '🚗 Transportation', merchant: 'Gas', date: `${lastMonth}-20`, user_id: 'u1' },
 ];
+const RECURRING = [
+  { id: 'rc1', name: 'Streaming', merchant_pattern: 'STREAMING', amount: 15.99, cadence: 'monthly', day_of_month: 4, budget_line_id: 'subs', autolog: false, status: 'active' },
+  // due on the 1st, logs itself, nothing has come in: logged on load
+  { id: 'rc2', name: 'Rent', merchant_pattern: 'RENT', amount: 1400, cadence: 'monthly', day_of_month: 1, budget_line_id: 'rent', autolog: true, status: 'active' },
+];
 const KIDS = [{ id: 'k1', name: 'Sam', emoji: '👦', color: '#6080f0' }];
 const KID_EXP = [{ id: 'ke1', kid_id: 'k1', amount: 25, category: '🧸 Toy / Game', date: `${month}-05`, note: 'Lego' }];
 
@@ -68,6 +73,8 @@ vi.mock('../src/lib/api.js', async (orig) => {
   stub.apiFetchKids = vi.fn(async () => KIDS);
   stub.apiFetchKidExpenses = vi.fn(async () => KID_EXP);
   stub.apiFetchShoppingItems = vi.fn(async () => ({ data: SHOPPING, error: null }));
+  stub.apiFetchRecurring = vi.fn(async () => ({ data: RECURRING, error: null }));
+  stub.apiImportTransactions = vi.fn(async (rows) => ({ data: rows.map((r, i) => ({ ...r, id: `auto${i}` })), error: null }));
   stub.apiSubscribeShoppingItems = vi.fn(() => () => {});
   return stub;
 });
@@ -97,7 +104,7 @@ function navButton(label) {
 }
 
 describe('every screen renders with real-shaped data', () => {
-  for (const label of ['Dashboard', 'Spending', 'Budget', 'Paychecks', 'Debts', 'Family', 'Shopping', 'Settings']) {
+  for (const label of ['Dashboard', 'Spending', 'Budget', 'Paychecks', 'Recurring', 'Debts', 'Family', 'Shopping', 'Settings']) {
     it(label, async () => {
       const { errors, restore } = await renderApp();
       await click(navButton(label));
@@ -154,5 +161,16 @@ describe('every screen renders with real-shaped data', () => {
     expect(card.textContent).toMatch(/Rent/);
     restore();
     expect(errors).toEqual([]);
+  });
+
+  it('logs a due recurring item once on load', async () => {
+    const api = await import('../src/lib/api.js');
+    api.apiImportTransactions.mockClear();
+    const { errors, restore } = await renderApp();
+    restore();
+    expect(errors).toEqual([]);
+    const calls = api.apiImportTransactions.mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0].map((r) => [r.merchant, r.import_id])).toEqual([['Rent', `rec:rc2:${month}`]]);
   });
 });

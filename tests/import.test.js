@@ -195,6 +195,12 @@ describe('the import preview', () => {
     expect(r.map((x) => x.status)).toEqual(['possible-duplicate', 'new']);
   });
 
+  it('an automatically logged bill is caught as a possible duplicate of the real charge', () => {
+    const e = [{ date: '2026-10-02', description: 'RENT PAYMENT', outflow: 1400, fitid: '', memo: '', bankCategory: '' }];
+    const r = buildReview(e, { account: 'x', existing: [{ id: 'auto', date: '2026-10-01', amount: 1400, merchant: 'Rent', import_id: 'rec:r:2026-10' }] });
+    expect(r[0].status).toBe('possible-duplicate');
+  });
+
   it('suggests a line from the description when no rule applies', () => {
     const e = [{ date: '2026-10-12', description: 'NEIGHBORHOOD GROCERY', outflow: 30, fitid: '', memo: '', bankCategory: '' }];
     const r = buildReview(e, { account: 'x', lines });

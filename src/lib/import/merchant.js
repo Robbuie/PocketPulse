@@ -35,16 +35,19 @@ const normalizeText = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9&' ]
 // starts with it, or the whole description contains it. The longest matching
 // pattern wins, so "AMAZON PRIME" beats "AMAZON".
 export function matchRule(rules, description) {
-  const key = merchantKey(description);
-  const text = normalizeText(description);
   let best = null;
   for (const r of rules || []) {
-    const p = normalizeText(r.pattern);
-    if (!p) continue;
-    const hit = key === p || key.startsWith(p + ' ') || ` ${text} `.includes(` ${p} `);
-    if (hit && (!best || p.length > normalizeText(best.pattern).length)) best = r;
+    if (matchesPattern(r.pattern, description) && (!best || normalizeText(r.pattern).length > normalizeText(best.pattern).length)) best = r;
   }
   return best;
+}
+
+// Whether one pattern matches a description, by the rule above.
+export function matchesPattern(pattern, description) {
+  const p = normalizeText(pattern);
+  if (!p) return false;
+  const key = merchantKey(description);
+  return key === p || key.startsWith(p + ' ') || ` ${normalizeText(description)} `.includes(` ${p} `);
 }
 
 // Money moving between accounts rather than being spent: card payments,
