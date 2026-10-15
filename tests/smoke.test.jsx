@@ -39,12 +39,12 @@ const BUDGET = {
   committed_extra: 200,
   shopping_stores: ['walmart', 'mystore'],
   custom_stores: [{ id: 'mystore', name: 'Corner Market', url: '' }],
-  shopping_list: [
-    { id: 'i1', name: 'Ground beef', qty: '2', unit: 'lbs', notes: '', checked: false, added: `${month}-02`,
-      prices: { walmart: { price: 9.2, pkgQty: 2, pkgUnit: 'lbs' }, mystore: { price: 0.3, pkgQty: 1, pkgUnit: 'oz', deal: { type: 'pct', value: 10 } } } },
-    { id: 'i2', name: 'Milk', qty: '1', unit: 'gal', checked: true, prices: { walmart: 3.49 } },
-  ],
 };
+const SHOPPING = [
+  { id: 'i1', name: 'Ground beef', qty: '2', unit: 'lbs', notes: '', checked: false, added: `${month}-02`,
+    prices: { walmart: { price: 9.2, pkgQty: 2, pkgUnit: 'lbs' }, mystore: { price: 0.3, pkgQty: 1, pkgUnit: 'oz', deal: { type: 'pct', value: 10 } } } },
+  { id: 'i2', name: 'Milk', qty: '1', unit: 'gal', checked: true, prices: { walmart: 3.49 } },
+];
 const DEBTS = [
   { id: 'd1', name: 'Card', type: 'credit_card', balance: 4200, rate: 24.99, min_payment: 120, due_day: 20, original_balance: 6000 },
   { id: 'd2', name: 'Car', type: 'auto', balance: 11800, rate: 6.4, min_payment: 310, due_day: 5 },
@@ -67,6 +67,8 @@ vi.mock('../src/lib/api.js', async (orig) => {
   stub.apiFetchBudget = vi.fn(async () => BUDGET);
   stub.apiFetchKids = vi.fn(async () => KIDS);
   stub.apiFetchKidExpenses = vi.fn(async () => KID_EXP);
+  stub.apiFetchShoppingItems = vi.fn(async () => ({ data: SHOPPING, error: null }));
+  stub.apiSubscribeShoppingItems = vi.fn(() => () => {});
   return stub;
 });
 

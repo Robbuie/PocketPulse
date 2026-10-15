@@ -103,10 +103,16 @@ All app data is scoped by `household_id`.
 - `transactions` (amount, category, merchant, date, items jsonb,
   budget_line_id, user_id)
 - `kids`, `kid_expenses` (kid_id, amount, category, date)
+- `shopping_items` (0.4.0; id text, name, qty, unit, notes, prices jsonb,
+  checked, added, created_by, updated_at by trigger). One row per item, in
+  the Realtime publication. Ids are text because the items copied from the
+  old JSON list kept their short string ids.
 - `budget_config`, one row per household, holding JSON: `expenses` (budget
   lines), `income`, `income_sources`, paycheck settings,
   `committed_strategy` / `committed_payment` / `committed_extra`,
-  `shopping_list`, `shopping_stores`, `custom_stores`
+  `shopping_stores`, `custom_stores`. Its `shopping_list` column is retired
+  since 0.4.0: kept for rollback, never read or written (`apiSaveBudget`
+  strips it), to be dropped by a later migration.
 
 ## Household membership
 
@@ -129,7 +135,20 @@ treatment: `set search_path = public`, check the caller inside, revoke from
 `public` and `anon`, grant to `authenticated` only.
 
 `supabase/tests/` holds `shim.sql` (the Supabase pieces the migrations need,
-on plain Postgres) and per-migration access checks.
+on plain Postgres, plus a household with an old-style JSON shopping list),
+one `*.test.sql` per migration, and `run.sh`, which applies every migration
+twice to a throwaway local Postgres and runs the checks. Each check echoes
+what it expects; read the output.
+
+## Realtime
+
+A table only sends changes if it is in the `supabase_realtime` publication;
+the migration that creates it adds it there. Subscriptions live in
+`src/lib/api.js` (`apiSubscribe...`). Insert and update events are filtered
+by `household_id`. Delete events cannot be filtered (with RLS on they carry
+only the primary key), so handlers drop unknown ids. A screen that edits a
+row while its own save is pending ignores the server copy of that row until
+the save goes out (see `pendingPrices` in GroceryTab).
 
 ## Rules that already caused bugs
 
@@ -149,11 +168,14 @@ on plain Postgres) and per-migration access checks.
 
 ## Known issues, in order
 
-1. **`budget_config` is one JSON row.** Two members editing at once
-   overwrite each other. Move the shopping list into a `shopping_items`
-   table first, then other high-churn data as needed.
-2. **Realtime only covers transaction inserts.** Updates, deletes and other
-   tables need a reload to appear on the other phone.
+1. **`budget_config` is still one JSON row** for budget lines, income,
+   paycheck settings, the payoff plan and store choices. Every save writes
+   the whole row from the saver's copy, so two members changing different
+   settings at once can still undo each other. Less frequent than the
+   shopping list was; split further if it bites.
+2. **Realtime covers transaction inserts and `shopping_items` only.**
+   Other tables, and transaction updates and deletes, need a reload to
+   appear on the other phone.
 3. **Supabase free tier** pauses inactive projects and has no automatic
    backups. Set up a scheduled export before other households depend on it.
 4. **Receipt parser** reads a card-brand line ("VISA 9.77") as an item. A
@@ -163,7 +185,7 @@ on plain Postgres) and per-migration access checks.
 
 1. 0.2.0: Vite build, modules, tests, CI. Done.
 2. 0.3.0: household create/join through database functions. Done.
-3. `shopping_items` table with a migration of existing JSON.
+3. 0.4.0: `shopping_items` table, live sync, per-item saves. Done.
 4. PWA manifest and service worker; custom domain on Netlify.
 5. Product basics: custom SMTP for auth email, privacy policy and terms,
    account deletion, data export.

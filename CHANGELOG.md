@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 - a shopping list two phones can share
+
+Needs `supabase/migrations/0004_shopping_items.sql` run in the Supabase SQL
+Editor, then this version deployed straight away.
+
+- **Two people can use the shopping list at once.** Each item is now its own
+  record. Before, the whole list was saved as one piece on every change, so
+  checking something off on one phone could quietly undo what the other
+  phone had just added or checked.
+- **Changes show up on the other phone live**, without reloading: items
+  added, checked off, edited or removed.
+- **Typing a price is smoother.** The price shows as you type and is saved
+  once you pause, instead of saving the whole list on every keystroke.
+- If a change cannot be saved, the item goes back to how it was and the list
+  says why.
+- Existing lists are copied over as they are, in the same order, prices and
+  deals included.
+
+
 ## 0.3.0 - households are protected by the database
 
 Needs `supabase/migrations/0003_household_security.sql` run in the Supabase

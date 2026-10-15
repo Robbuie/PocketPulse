@@ -1,13 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../components/ui';
-import { apiSaveBudget } from '../../lib/api';
+import { apiAddShoppingItem, apiDeleteShoppingItems, apiFetchShoppingItems, apiSaveBudget, apiSubscribeShoppingItems, apiUpdateShoppingItem } from '../../lib/api';
 import { DEAL_TYPES, calcEffectivePrice, hasActiveDeal } from '../../lib/deals';
 import { f$, today, uid } from '../../lib/format';
 import { UNITS, fUnit, friendlyBasePrice, normalizeUnitPrice, sameUnitGroup } from '../../lib/units';
 import { DEFAULT_STORES } from './stores';
 
-export function GroceryTab({budget,setBudget,householdId}){
-  const list=budget.shopping_list||[];
+// How long after the last keystroke a price edit is saved.
+const PRICE_SAVE_DELAY_MS=600;
+
+export function GroceryTab({budget,setBudget,householdId,userId}){
+  // Since 0.4.0 each item is a row in shopping_items. Changes show at once,
+  // are saved for that item only, and other members' changes arrive live.
+  const[list,setList]=useState([]);
+  const[listLoading,setListLoading]=useState(true);
+  const[listErr,setListErr]=useState('');
+  const listRef=useRef(list);listRef.current=list;
+  // Items with a price edit waiting to be saved: id -> timer.
+  const pendingPrices=useRef(new Map());
   const activeStoreIds=budget.shopping_stores||DEFAULT_STORES.slice(0,2).map(s=>s.id);
   const customStores=budget.custom_stores||[];
   // All available stores = defaults + custom
@@ -25,23 +35,70 @@ export function GroceryTab({budget,setBudget,householdId}){
   const[newStore,setNewStore]=useState({name:'',url:''});
   const[addingStore,setAddingStore]=useState(false);
 
-  async function saveList(newList){
-    setSaving(true);
-    await apiSaveBudget({...budget,shopping_list:newList},householdId);
-    setBudget(b=>({...b,shopping_list:newList}));
-    setSaving(false);
+  useEffect(()=>{
+    if(!householdId)return;
+    let live=true;
+    apiFetchShoppingItems(householdId).then(({data,error})=>{
+      if(!live)return;
+      if(error)setListErr('Could not load the shopping list. Reload the page to try again.');
+      setList(data);setListLoading(false);
+    });
+    const unsubscribe=apiSubscribeShoppingItems(householdId,{
+      onInsert:row=>setList(prev=>prev.some(i=>i.id===row.id)?prev:[row,...prev]),
+      // A price being typed here wins over an older copy arriving from the server.
+      onUpdate:row=>{if(pendingPrices.current.has(row.id))return;setList(prev=>prev.map(i=>i.id===row.id?{...i,...row}:i))},
+      onDelete:id=>{if(id)setList(prev=>prev.filter(i=>i.id!==id))},
+    });
+    return()=>{live=false;unsubscribe()};
+  },[householdId]);
+
+  // Leaving the screen saves any price still waiting.
+  useEffect(()=>()=>{for(const id of [...pendingPrices.current.keys()])flushPrice(id)},[]);
+
+  function showSaveError(error){
+    if(error)setListErr(error.message||'Could not save. Check your connection and try again.');
   }
 
   async function addItem(){
     if(!form.name.trim())return;setSaving(true);
-    const item={id:uid(),name:form.name.trim(),qty:form.qty.trim(),unit:form.unit,notes:form.notes.trim(),prices:{},checked:false,added:today()};
-    await saveList([item,...list]);
+    const item={name:form.name.trim(),qty:form.qty.trim(),unit:form.unit,notes:form.notes.trim(),prices:{},checked:false,added:today()};
+    const{data,error}=await apiAddShoppingItem(item,householdId,userId);
+    if(error||!data){showSaveError(error||{});setSaving(false);return}
+    setList(prev=>prev.some(i=>i.id===data.id)?prev:[data,...prev]);
     setForm({name:'',qty:'',unit:'count',notes:''});setShowAdd(false);setSaving(false);
   }
 
-  async function toggleCheck(id){await saveList(list.map(i=>i.id===id?{...i,checked:!i.checked}:i))}
-  async function deleteItem(id){await saveList(list.filter(i=>i.id!==id))}
-  async function clearChecked(){if(!confirm('Remove all checked items?'))return;await saveList(list.filter(i=>!i.checked))}
+  async function toggleCheck(id){
+    const item=listRef.current.find(i=>i.id===id);if(!item)return;
+    const checked=!item.checked;
+    setList(prev=>prev.map(i=>i.id===id?{...i,checked}:i));
+    const{error}=await apiUpdateShoppingItem(id,{checked});
+    if(error){setList(prev=>prev.map(i=>i.id===id?{...i,checked:!checked}:i));showSaveError(error)}
+  }
+
+  function cancelPendingPrice(id){
+    clearTimeout(pendingPrices.current.get(id));
+    pendingPrices.current.delete(id);
+  }
+
+  async function deleteItem(id){
+    const before=listRef.current;
+    cancelPendingPrice(id);
+    setList(prev=>prev.filter(i=>i.id!==id));
+    const{error}=await apiDeleteShoppingItems([id]);
+    if(error){setList(before);showSaveError(error)}
+  }
+
+  async function clearChecked(){
+    if(!confirm('Remove all checked items?'))return;
+    const before=listRef.current;
+    const ids=before.filter(i=>i.checked).map(i=>i.id);
+    if(!ids.length)return;
+    ids.forEach(cancelPendingPrice);
+    setList(prev=>prev.filter(i=>!i.checked));
+    const{error}=await apiDeleteShoppingItems(ids);
+    if(error){setList(before);showSaveError(error)}
+  }
 
   // prices stored as {[storeId]: {price, pkgQty, pkgUnit, deal?}} — or legacy number
   function getPriceEntry(item,storeId){
@@ -60,24 +117,36 @@ export function GroceryTab({budget,setBudget,householdId}){
     return normalizeUnitPrice(raw,entry.pkgUnit).normalized;
   }
 
-  async function savePrice(itemId,storeId,field,val){
-    const newList=list.map(i=>{
-      if(i.id!==itemId)return i;
-      const cur=getPriceEntry(i,storeId)||{price:'',pkgQty:1,pkgUnit:i.unit||'count'};
-      let updated;
-      if(field.startsWith('deal.')){
-        const dealField=field.slice(5);
-        const curDeal=cur.deal||{type:'',value:'',expires:''};
-        updated={...cur,deal:{...curDeal,[dealField]:val}};
-        if(dealField==='type'&&!val)updated={...cur,deal:null};
-      }else{
-        updated={...cur,[field]:val};
-      }
-      const prices={...(i.prices||{}),[storeId]:updated};
-      if(!updated.price&&updated.price!==0)delete prices[storeId];
-      return{...i,prices};
-    });
-    await saveList(newList);
+  // The item with one price field changed; the shape is unchanged from 0.1.0.
+  function withPrice(i,storeId,field,val){
+    const cur=getPriceEntry(i,storeId)||{price:'',pkgQty:1,pkgUnit:i.unit||'count'};
+    let updated;
+    if(field.startsWith('deal.')){
+      const dealField=field.slice(5);
+      const curDeal=cur.deal||{type:'',value:'',expires:''};
+      updated={...cur,deal:{...curDeal,[dealField]:val}};
+      if(dealField==='type'&&!val)updated={...cur,deal:null};
+    }else{
+      updated={...cur,[field]:val};
+    }
+    const prices={...(i.prices||{}),[storeId]:updated};
+    if(!updated.price&&updated.price!==0)delete prices[storeId];
+    return{...i,prices};
+  }
+
+  // Price fields save on every keystroke in the UI; the write waits for a
+  // pause so typing "3.49" is one save, not four.
+  function savePrice(itemId,storeId,field,val){
+    setList(prev=>prev.map(i=>i.id===itemId?withPrice(i,storeId,field,val):i));
+    clearTimeout(pendingPrices.current.get(itemId));
+    pendingPrices.current.set(itemId,setTimeout(()=>flushPrice(itemId),PRICE_SAVE_DELAY_MS));
+  }
+
+  async function flushPrice(id){
+    cancelPendingPrice(id);
+    const item=listRef.current.find(i=>i.id===id);if(!item)return;
+    const{error}=await apiUpdateShoppingItem(id,{prices:item.prices||{}});
+    showSaveError(error);
   }
 
   async function toggleStore(id){
@@ -161,7 +230,10 @@ export function GroceryTab({budget,setBudget,householdId}){
         :<div style={{marginTop:6,fontSize:11,color:'var(--amber)'}}>⚙️ No stores selected — tap Stores to choose.</div>}
     </div>
 
-    {shown.length===0&&<div className="card"><div className="empty"><div className="empty-icon">🛒</div><p>{filter==='active'?'List is empty. Tap + Item to add.':'No items.'}</p></div></div>}
+    {listErr&&<div className="alert alert-err" onClick={()=>setListErr('')}>{listErr}</div>}
+    {listLoading&&<div style={{textAlign:'center',padding:30}}><div className="spinner"/></div>}
+
+    {!listLoading&&shown.length===0&&<div className="card"><div className="empty"><div className="empty-icon">🛒</div><p>{filter==='active'?'List is empty. Tap + Item to add.':'No items.'}</p></div></div>}
 
     {shown.map(item=>{
       const best=bestStore(item);

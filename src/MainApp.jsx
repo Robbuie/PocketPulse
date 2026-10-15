@@ -106,7 +106,7 @@ export function MainApp({user,profile,household}){
       case'paycheck':return<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>;
       case'debts':return<DebtsTab debts={debts} setDebts={setDebts} householdId={hid} budget={budget} setBudget={setBudget} transactions={transactions} setTransactions={setTransactions} userId={uid2}/>;
       case'kids':return<FamilyTab kids={kids} setKids={setKids} kidExpenses={kidExpenses} setKidExpenses={setKidExpenses} householdId={hid} userId={uid2}/>;
-      case'grocery':return<GroceryTab budget={budget} setBudget={setBudget} householdId={hid}/>;
+      case'grocery':return<GroceryTab budget={budget} setBudget={setBudget} householdId={hid} userId={uid2}/>;
       case'settings':return<SettingsTab user={user} profile={profile} household={household} onSignOut={signOut}/>;
     }
   }

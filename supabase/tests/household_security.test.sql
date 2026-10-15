@@ -13,7 +13,7 @@ select count(*) as a_sees_debts from debts;
 select create_household('Other');
 reset role;
 \echo '--- B joins with the code (lowercase, padded)'
-select set_config('test.code', (select lower(invite_code) from households), false);
+select set_config('test.code', (select lower(invite_code) from households where name = 'The House'), false);
 set role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000b',false);
 select name from join_household('  ' || current_setting('test.code') || ' ');
 select count(*) as b_sees_debts from debts;
@@ -38,6 +38,6 @@ reset role;
 \echo '--- anon sees no households and cannot change them (was possible with RLS off)'
 set role anon; select count(*) as anon_sees_households from households;
 update households set name = 'x'; delete from households;
-reset role; select count(*) as households_left from households;
+reset role; select count(*) as the_house_still_there from households where name = 'The House';
 \echo '--- anon cannot call the functions'
 set role anon; select create_household('x'); reset role;

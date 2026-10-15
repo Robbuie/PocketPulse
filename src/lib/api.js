@@ -32,7 +32,10 @@ export async function apiUpdateTransaction(id,updates){const{data,error}=await s
 
 export async function apiFetchBudget(hid){const{data}=await sb.from('budget_config').select('*').eq('household_id',hid).maybeSingle();return data}
 
-export async function apiSaveBudget(config,hid){const{error}=await sb.from('budget_config').upsert({...config,household_id:hid},{onConflict:'household_id'});return{error}}
+// shopping_list moved to its own table in 0.4.0. The old column is still in
+// the row this was loaded from; leave it out so a budget save never writes a
+// stale copy back.
+export async function apiSaveBudget(config,hid){const{shopping_list:_retired,...rest}=config;const{error}=await sb.from('budget_config').upsert({...rest,household_id:hid},{onConflict:'household_id'});return{error}}
 
 export async function apiFetchKids(hid){const{data}=await sb.from('kids').select('*').eq('household_id',hid).order('created_at');return data||[]}
 
@@ -50,3 +53,34 @@ export async function apiAddKidExpense(ke,hid,uid2){const{data,error}=await sb.f
 export async function apiUpdateKidExpense(id,updates){const{data,error}=await sb.from('kid_expenses').update(updates).eq('id',id).select().single();return{data,error}}
 
 export async function apiDeleteKidExpense(id){const{error}=await sb.from('kid_expenses').delete().eq('id',id);return{error}}
+
+// Shopping list (migration 0004). One row per item; newest first.
+const SHOPPING_FIELDS='id,name,qty,unit,notes,prices,checked,added,created_at';
+export async function apiFetchShoppingItems(hid){
+  const{data,error}=await sb.from('shopping_items').select(SHOPPING_FIELDS).eq('household_id',hid).order('created_at',{ascending:false});
+  return{data:data||[],error};
+}
+export async function apiAddShoppingItem(item,hid,userId){
+  const{data,error}=await sb.from('shopping_items').insert({...item,household_id:hid,created_by:userId}).select(SHOPPING_FIELDS).single();
+  return{data,error};
+}
+export async function apiUpdateShoppingItem(id,updates){
+  const{error}=await sb.from('shopping_items').update(updates).eq('id',id);
+  return{error};
+}
+export async function apiDeleteShoppingItems(ids){
+  const{error}=await sb.from('shopping_items').delete().in('id',ids);
+  return{error};
+}
+
+// Live changes from other members. Inserts and updates are filtered to the
+// household; deletes cannot be (with row level security on, a delete event
+// carries only the id), so the handler ignores ids it does not have.
+export function apiSubscribeShoppingItems(hid,{onInsert,onUpdate,onDelete}){
+  const ch=sb.channel(`shop-${hid}`)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'shopping_items',filter:`household_id=eq.${hid}`},p=>onInsert(p.new))
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'shopping_items',filter:`household_id=eq.${hid}`},p=>onUpdate(p.new))
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'shopping_items'},p=>onDelete(p.old?.id))
+    .subscribe();
+  return()=>sb.removeChannel(ch);
+}
