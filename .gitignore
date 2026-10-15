@@ -1,0 +1,23 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+
+# Environment. .env.example is committed; real values live in .env.local
+# locally and in Netlify's environment settings.
+.env
+.env.*
+!.env.example
+
+# Netlify CLI state
+.netlify/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.log
+
+# Session scratch
+Claude outputs/
