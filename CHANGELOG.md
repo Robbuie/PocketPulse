@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 - a real build
+
+The app now builds with Vite from separate modules instead of compiling
+itself in the browser on every load. It looks and works the same, apart from
+the two fixes below; it should start noticeably faster on phones.
+
+- **The Home screen no longer goes blank after committing to a payoff
+  plan.** The "Committed to ... Plan" badge referred to an amount that did
+  not exist, which stopped the whole screen from drawing.
+- **Budget > History no longer fails** when monthly income comes from
+  income sources. It read a list that was never defined.
+- Supabase settings come from environment variables
+  (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) instead of being written
+  into the page. Netlify needs both set before the next deploy.
+- React, Supabase and Chart.js are bundled rather than loaded from CDNs.
+  Tesseract still loads on demand the first time a receipt is scanned.
+- Tests: the payoff, interest and unit-conversion math is checked against
+  the 0.1.0 code, receipt parsing has fixtures, and a smoke test opens every
+  screen with sample data. Lint, tests and a build run on every push.
+
 ## 0.1.0 - the single-file app as deployed
 
 The version running on Netlify, put under version control as the baseline
