@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { apiCreateHousehold, apiJoinHousehold, apiUpsertProfile } from '../../lib/api';
+import { apiCreateHousehold, apiJoinHousehold } from '../../lib/api';
 
 export function HouseholdScreen({user,onReady}){
   const[mode,setMode]=useState('create');
@@ -8,17 +8,15 @@ export function HouseholdScreen({user,onReady}){
   async function create(){
     if(!houseName.trim()){setErr('Enter a household name');return}
     setLoading(true);setErr('');
-    const{data,error}=await apiCreateHousehold(houseName.trim(),user.id);
-    if(error){setErr(error.message);setLoading(false);return}
-    await apiUpsertProfile({id:user.id,email:user.email,household_id:data.id});
+    const{data,error}=await apiCreateHousehold(houseName.trim());
+    if(error||!data){setErr(error?.message||'Could not create the household.');setLoading(false);return}
     onReady(data);setLoading(false);
   }
   async function join(){
     if(!inviteCode.trim()){setErr('Enter an invite code');return}
     setLoading(true);setErr('');
     const{data,error}=await apiJoinHousehold(inviteCode);
-    if(error||!data){setErr('Invite code not found.');setLoading(false);return}
-    await apiUpsertProfile({id:user.id,email:user.email,household_id:data.id});
+    if(error||!data){setErr(error?.message||'Invite code not found.');setLoading(false);return}
     onReady(data);setLoading(false);
   }
   return(<div className="auth-wrap"><div className="auth-box" style={{maxWidth:460}}>

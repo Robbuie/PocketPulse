@@ -6,9 +6,12 @@ export async function apiUpsertProfile(p){const{error}=await sb.from('profiles')
 
 export async function apiGetHousehold(id){const{data}=await sb.from('households').select('*').eq('id',id).single();return data}
 
-export async function apiCreateHousehold(name,userId){const{data,error}=await sb.from('households').insert({name,created_by:userId}).select().single();return{data,error}}
+// Creating and joining run as database functions (migration 0003): they
+// check the caller and set profiles.household_id, which the browser itself is
+// not allowed to write.
+export async function apiCreateHousehold(name){const{data,error}=await sb.rpc('create_household',{p_name:name});return{data,error}}
 
-export async function apiJoinHousehold(code){const{data,error}=await sb.from('households').select('*').eq('invite_code',code.toUpperCase().trim()).single();return{data,error}}
+export async function apiJoinHousehold(code){const{data,error}=await sb.rpc('join_household',{p_code:code});return{data,error}}
 
 export async function apiFetchDebts(hid){const{data}=await sb.from('debts').select('*').eq('household_id',hid).order('created_at');return data||[]}
 

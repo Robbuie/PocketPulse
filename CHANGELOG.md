@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 - households are protected by the database
+
+Needs `supabase/migrations/0003_household_security.sql` run in the Supabase
+SQL Editor before this version is deployed.
+
+- **Row level security is on for every table.** It was off for households,
+  which Supabase's security advisor flagged: anyone holding the app's public
+  key could list every household with its invite code, and rename or delete
+  it. Now only members see their own household, and nobody can delete one.
+- **Joining a household checks the invite code on the server.** Before, the
+  app wrote the household onto the user's own profile, and the database
+  accepted any household there, so anyone who learned a household's id could
+  join it and read everything in it. Profiles can no longer change their
+  household directly; only creating or joining one can.
+- **Creating a household** also goes through the database, and both screens
+  show the database's own message (an unknown code, or already being in a
+  household).
+
 ## 0.2.0 - a real build
 
 The app now builds with Vite from separate modules instead of compiling

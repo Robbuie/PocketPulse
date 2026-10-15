@@ -85,7 +85,7 @@ tests/
   legacy.js             loads functions from legacy/pocketpulse.html
   finance, units, receipt tests; smoke.test.jsx renders every screen
 legacy/pocketpulse.html the single-file app as it ran before 0.2.0
-supabase/migrations/    SQL, one file per change (from 0.3.0)
+supabase/migrations/    SQL, one file per change, numbered by the release it ships with
 ```
 
 `legacy/pocketpulse.html` is the reference for money math. The parity tests
@@ -108,6 +108,22 @@ All app data is scoped by `household_id`.
   `committed_strategy` / `committed_payment` / `committed_extra`,
   `shopping_list`, `shopping_stores`, `custom_stores`
 
+## Household membership
+
+Membership is `profiles.household_id`, and every table's RLS policy trusts
+it, so it is written only by the `security definer` functions
+`create_household(p_name)` and `join_household(p_code)` (migration 0003).
+The `authenticated` role has column privileges on `profiles` for `id`,
+`email` and `name` only. A new profile column the app must write needs its
+own `grant insert/update (col)`; never grant `household_id`, and never
+re-grant table-wide insert or update on `profiles`. Households have no
+insert policy; they are created only by `create_household`. Row level
+security must stay enabled on every table (it was off on `households` until
+0.3.0); Supabase's Security Advisor reports it if it is ever switched off.
+
+`supabase/tests/` holds `shim.sql` (the Supabase pieces the migrations need,
+on plain Postgres) and per-migration access checks.
+
 ## Rules that already caused bugs
 
 - A transaction counts against a budget line only through an explicit
@@ -126,25 +142,20 @@ All app data is scoped by `household_id`.
 
 ## Known issues, in order
 
-1. **Household joining is not enforced server side.** The client writes
-   `household_id` onto its own profile, so anyone with a household id could
-   join it. Fix: a `security definer` function `join_household(code text)`
-   that validates the invite code, and an RLS policy that stops direct
-   updates of `profiles.household_id`.
-2. **`budget_config` is one JSON row.** Two members editing at once
+1. **`budget_config` is one JSON row.** Two members editing at once
    overwrite each other. Move the shopping list into a `shopping_items`
    table first, then other high-churn data as needed.
-3. **Realtime only covers transaction inserts.** Updates, deletes and other
+2. **Realtime only covers transaction inserts.** Updates, deletes and other
    tables need a reload to appear on the other phone.
-4. **Supabase free tier** pauses inactive projects and has no automatic
+3. **Supabase free tier** pauses inactive projects and has no automatic
    backups. Set up a scheduled export before other households depend on it.
-5. **Receipt parser** reads a card-brand line ("VISA 9.77") as an item. A
+4. **Receipt parser** reads a card-brand line ("VISA 9.77") as an item. A
    test marks it as a known failure.
 
 ## Roadmap
 
 1. 0.2.0: Vite build, modules, tests, CI. Done.
-2. Security: invite-code RPC, profile update policy, audit every RLS policy.
+2. 0.3.0: household create/join through database functions. Done.
 3. `shopping_items` table with a migration of existing JSON.
 4. PWA manifest and service worker; custom domain on Netlify.
 5. Product basics: custom SMTP for auth email, privacy policy and terms,
@@ -163,8 +174,13 @@ All app data is scoped by `household_id`.
 - Supabase calls go through `src/lib/api.js`; components do not call `sb`
   directly (MainApp's realtime channel and sign-out are the exceptions).
 - Prefer new tables with RLS over more keys in the `budget_config` JSON.
-- SQL migrations are safe to run on the live database: `if not exists`, no
-  destructive drops without a written plan.
+- SQL migrations are safe to run on the live database and safe to run
+  twice: `if not exists`, `create or replace`, `drop ... if exists`, no
+  destructive drops of data without a written plan. Each file's header says
+  what it changes and whether it must run before or after the app deploys.
+  Before handing one over, Claude runs it twice against a local Postgres
+  with a Supabase-like shim (roles `anon`/`authenticated`, `auth.uid()`) and
+  checks the access cases it is meant to change.
 
 ## Versioning and releasing
 
