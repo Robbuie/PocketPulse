@@ -74,6 +74,7 @@ vi.mock('../src/lib/api.js', async (orig) => {
   stub.apiFetchKidExpenses = vi.fn(async () => KID_EXP);
   stub.apiFetchShoppingItems = vi.fn(async () => ({ data: SHOPPING, error: null }));
   stub.apiFetchRecurring = vi.fn(async () => ({ data: RECURRING, error: null }));
+  stub.apiFetchGoals = vi.fn(async () => ({ goals: [{ id: 'g1', name: 'Christmas', target_amount: 800, target_date: `${month}-28`, status: 'active' }], entries: [{ id: 'e1', goal_id: 'g1', amount: 150, date: `${month}-01`, note: '' }], error: null }));
   stub.apiImportTransactions = vi.fn(async (rows) => ({ data: rows.map((r, i) => ({ ...r, id: `auto${i}` })), error: null }));
   stub.apiSubscribeShoppingItems = vi.fn(() => () => {});
   return stub;
@@ -104,7 +105,7 @@ function navButton(label) {
 }
 
 describe('every screen renders with real-shaped data', () => {
-  for (const label of ['Dashboard', 'Spending', 'Budget', 'Paychecks', 'Recurring', 'Debts', 'Family', 'Shopping', 'Settings']) {
+  for (const label of ['Dashboard', 'Spending', 'Budget', 'Paychecks', 'Recurring', 'Goals', 'Review', 'Debts', 'Family', 'Shopping', 'Settings']) {
     it(label, async () => {
       const { errors, restore } = await renderApp();
       await click(navButton(label));

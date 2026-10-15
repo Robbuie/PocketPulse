@@ -4,6 +4,7 @@ import { KV } from '../../components/ui';
 import { apiSaveBudget } from '../../lib/api';
 import { rollingAvgByCategory, spentByLine } from '../../lib/budget';
 import { monthPace } from '../../lib/pacing';
+import { carryover } from '../../lib/rollover';
 import { CATS, CAT_COLORS } from '../../lib/constants';
 import { catIcon, f$, fshort, monthKey, ordinal, uid } from '../../lib/format';
 import { totalMonthlyIncome } from '../../lib/income';
@@ -34,7 +35,8 @@ export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,
   // Actual spending this month — keyed by budget_line_id first, then category
   const actualByLineId=useMemo(()=>spentByLine(transactions,thisMonth),[transactions,thisMonth]);
   // Daily allowance and pace for flexible lines, as on Home.
-  const paceById=useMemo(()=>Object.fromEntries(monthPace(budget.expenses,actualByLineId).flex.map(x=>[x.line.id,x])),[budget.expenses,actualByLineId]);
+  const carry=useMemo(()=>carryover(budget.expenses,transactions,thisMonth),[budget.expenses,transactions,thisMonth]);
+  const paceById=useMemo(()=>Object.fromEntries(monthPace(budget.expenses,actualByLineId,new Date(),carry).flex.map(x=>[x.line.id,x])),[budget.expenses,actualByLineId,carry]);
 
   const actualByCategory=useMemo(()=>{
     const map={};
@@ -196,6 +198,10 @@ export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,
             <input type="checkbox" checked={!!e.is_variable} onChange={ev=>updateExp(e.id,'is_variable',ev.target.checked)} style={{width:'auto',accentColor:'var(--amber)'}}/>
             Variable (no fixed due date)
           </label>
+          {(e.is_variable||!e.due_day)&&<label style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',textTransform:'none',letterSpacing:0,fontWeight:500,fontSize:12,marginBottom:0}}>
+            <input type="checkbox" checked={!!e.rollover} onChange={ev=>setForm(f=>({...f,expenses:f.expenses.map(x=>x.id===e.id?{...x,rollover:ev.target.checked,rollover_from:ev.target.checked?(x.rollover_from||monthKey()):null}:x)}))} style={{width:'auto',accentColor:'var(--green)'}}/>
+            Roll over unspent money
+          </label>}
           {!e.is_variable&&<div style={{display:'flex',alignItems:'center',gap:6,flex:1}}>
             <label style={{marginBottom:0,whiteSpace:'nowrap',fontSize:11}}>Due Day</label>
             <input type="number" min="1" max="31" placeholder="—" value={e.due_day||''} onChange={ev=>updateExp(e.id,'due_day',ev.target.value)} style={{width:60}}/>
@@ -310,7 +316,9 @@ export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,
         <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>By Line Item</div>
         {(budget.expenses||[]).map(e=>{
           const actual=actualByLineId[e.id]||0;
-          const budgeted=parseFloat(e.amount)||0;
+          // With rollover, this month has the line's amount plus what carried in.
+          const carried=carry[e.id]||0;
+          const budgeted=Math.max(0,(parseFloat(e.amount)||0)+carried);
           const pct=budgeted>0?Math.min(actual/budgeted*100,100):0;
           const over=actual>budgeted&&budgeted>0;
           return(<div key={e.id} className="bva-row">
@@ -318,6 +326,7 @@ export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,
               <div className="bva-name">
                 {e.label||e.category}
                 {e.is_variable&&<span className="var-badge" style={{marginLeft:6}}>VAR</span>}
+                {carried!==0&&<span style={{fontSize:10,color:carried>0?'var(--green)':'var(--red)',marginLeft:6}}>{carried>0?'+':'-'}{f$(Math.abs(carried))} carried</span>}
                 {e.due_day&&!e.is_variable&&<span style={{fontSize:10,color:'var(--muted)',marginLeft:6}}>due {ordinal(e.due_day)}</span>}
               </div>
               <div className="bva-nums">

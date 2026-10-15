@@ -78,6 +78,9 @@ src/
                         spentByLine (the one place spending per line is worked out)
     pacing.js           left to spend, daily allowance, ahead of pace, bills paid
     recurring.js        cycles, seen/late, auto-log, spotting repeat charges
+    rollover.js         carry into a month for rollover lines
+    goals.js            saved, left, per month and per paycheck
+    monthReview.js      a month against the budget, suggested new amounts
     units.js            unit conversion and price normalization
     deals.js            store deals and effective price
     receipt.js          OCR text to items
@@ -120,6 +123,10 @@ All app data is scoped by `household_id`.
   unique per household and pattern. A pattern is normally a merchant key.
 - `import_profiles` (signature = lower-cased header row, name, mapping):
   which CSV column is which, per bank layout.
+- `savings_goals` (0.9.0; name, target_amount, target_date, status
+  'active' | 'archived') and `goal_entries` (goal_id, amount, date, note):
+  saved = sum of a goal's entries, money in positive, money used negative.
+  The entries policy also checks the goal belongs to the same household.
 - `recurring_items` (0.8.0; name, merchant_pattern, amount, amount_varies,
   cadence 'monthly' | 'yearly', day_of_month, month_of_year, budget_line_id,
   autolog, status 'active' | 'paused' | 'dismissed'). 'dismissed' is a
@@ -134,7 +141,10 @@ All app data is scoped by `household_id`.
 - `budget_config`, one row per household, holding JSON: `expenses` (budget
   lines), `income`, `income_sources`, paycheck settings,
   `committed_strategy` / `committed_payment` / `committed_extra`,
-  `shopping_stores`, `custom_stores`. Its `shopping_list` column is retired
+  `shopping_stores`, `custom_stores`. A budget line in `expenses` is
+  `{id, label, category, amount, due_day, is_variable, debt_id?, rollover?,
+  rollover_from?}`; `rollover_from` ("YYYY-MM") is set when rollover is
+  switched on and cleared when it is switched off. Its `shopping_list` column is retired
   since 0.4.0: kept for rollback, never read or written (`apiSaveBudget`
   strips it), to be dropped by a later migration.
 
@@ -230,6 +240,22 @@ the save goes out (see `pendingPrices` in GroceryTab).
 - Suggestions: same merchant key in 2+ of the last four months, about once
   a month, amounts within 15% of the median, days within 6 of the median.
 
+## Rollover, goals, review
+
+- Carry = sum over months from `rollover_from` up to (not including) the
+  month of (line amount - spent), using the line's current amount. It is
+  added to a flexible line's amount in pacing, Budget and the review; bills
+  never roll over. A line's month can go negative only through the carry,
+  which is floored at zero for what is available.
+- Goal per-month need = left / months left counting the current month
+  (`monthsUntil`); per paycheck divides by checks per month across all
+  income sources.
+- Review suggestions: flexible lines from the three-month average (ceil to
+  $5) when at least $10 and 10% away; bills from the month's actual when
+  $5 or more away. Months before the first transaction are not averaged.
+- The Home prompt is local to the device (localStorage
+  `pp-review-seen-YYYY-MM`).
+
 ## Rules that already caused bugs
 
 - A transaction counts against a budget line only through an explicit
@@ -278,7 +304,8 @@ the save goes out (see `pendingPrices` in GroceryTab).
 5. 0.6.0: statement import and merchant rules. Done.
    0.7.0: left to spend, daily pace, bills paid. Done.
    0.8.0: recurring bills and subscriptions. Done.
-   Then, as chosen: rollover/sinking funds/month-end review.
+   0.9.0: rollover, savings goals, month in review. Done.
+   That completes the feature list chosen on 2026-10-14.
 6. Product basics: custom SMTP for auth email, privacy policy and terms,
    account deletion, data export.
 7. Payments: Stripe Checkout, a Supabase Edge Function for webhooks,

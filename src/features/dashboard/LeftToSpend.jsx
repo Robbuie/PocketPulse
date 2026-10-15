@@ -61,7 +61,14 @@ export function LeftToSpend({ pace, onOpenBudget }) {
             return (
               <div key={x.line.id} className="bva-row">
                 <div className="bva-labels">
-                  <div className="bva-name">{x.line.label || x.line.category}<Tag note={FLEX_NOTE[x.status]} /></div>
+                  <div className="bva-name">
+                    {x.line.label || x.line.category}<Tag note={FLEX_NOTE[x.status]} />
+                    {x.carried !== 0 && x.carried != null && (
+                      <span style={{ fontSize: 10, color: x.carried > 0 ? 'var(--green)' : 'var(--red)', marginLeft: 6 }}>
+                        {x.carried > 0 ? '+' : '-'}{f$(Math.abs(x.carried))} from last month
+                      </span>
+                    )}
+                  </div>
                   <div className="bva-nums">
                     {x.status === 'over'
                       ? <span style={{ color: 'var(--red)', fontWeight: 700 }}>{f$(-x.left, 2)} over</span>

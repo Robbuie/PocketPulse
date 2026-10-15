@@ -55,7 +55,9 @@ const BILL_ORDER = { late: 0, 'due-soon': 1, upcoming: 2, paid: 3 };
 
 // The whole month for Home: every line with an amount, flexible lines
 // most urgent first, bills by urgency then due day, and the flexible totals.
-export function monthPace(lines, spentMap, now = new Date()) {
+// carry: rollover carried in per line id (see rollover.js), added to what a
+// flexible line has this month.
+export function monthPace(lines, spentMap, now = new Date(), carry = {}) {
   const day = now.getDate();
   const days = daysInMonth(now.getFullYear(), now.getMonth());
   const flex = [];
@@ -65,9 +67,12 @@ export function monthPace(lines, spentMap, now = new Date()) {
     if (budgeted <= 0) continue;
     const spent = spentMap[line.id] || 0;
     if (lineKind(line) === 'bill') bills.push({ line, ...paceBill({ budgeted, spent, dueDay: Number(line.due_day), day }) });
-    else flex.push({ line, ...paceFlex({ budgeted, spent, day, days }) });
+    else {
+      const carried = carry[line.id] || 0;
+      flex.push({ line, carried, ...paceFlex({ budgeted: Math.max(0, budgeted + carried), spent, day, days }) });
+    }
   }
-  flex.sort((a, b) => FLEX_ORDER[a.status] - FLEX_ORDER[b.status] || a.left / a.budgeted - b.left / b.budgeted);
+  flex.sort((a, b) => FLEX_ORDER[a.status] - FLEX_ORDER[b.status] || a.left / (a.budgeted || 1) - b.left / (b.budgeted || 1));
   bills.sort((a, b) => BILL_ORDER[a.status] - BILL_ORDER[b.status] || a.dueDay - b.dueDay);
 
   const flexBudget = flex.reduce((s, x) => s + x.budgeted, 0);

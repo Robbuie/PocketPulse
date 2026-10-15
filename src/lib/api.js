@@ -154,3 +154,32 @@ export async function apiDeleteRecurring(id){
   const{error}=await sb.from('recurring_items').delete().eq('id',id);
   return{error};
 }
+
+// Savings goals (migration 0009). Saved = sum of a goal's entries.
+export async function apiFetchGoals(hid){
+  const[g,e]=await Promise.all([
+    sb.from('savings_goals').select('id,name,target_amount,target_date,status').eq('household_id',hid).order('created_at'),
+    sb.from('goal_entries').select('id,goal_id,amount,date,note').eq('household_id',hid).order('date',{ascending:false}),
+  ]);
+  return{goals:g.data||[],entries:e.data||[],error:g.error||e.error};
+}
+export async function apiSaveGoal(goal,hid,userId){
+  const{id,...fields}=goal;
+  const q=id
+    ?sb.from('savings_goals').update(fields).eq('id',id)
+    :sb.from('savings_goals').insert({...fields,household_id:hid,created_by:userId});
+  const{data,error}=await q.select('id,name,target_amount,target_date,status').single();
+  return{data,error};
+}
+export async function apiDeleteGoal(id){
+  const{error}=await sb.from('savings_goals').delete().eq('id',id);
+  return{error};
+}
+export async function apiAddGoalEntry(entry,hid,userId){
+  const{data,error}=await sb.from('goal_entries').insert({...entry,household_id:hid,created_by:userId}).select('id,goal_id,amount,date,note').single();
+  return{data,error};
+}
+export async function apiDeleteGoalEntry(id){
+  const{error}=await sb.from('goal_entries').delete().eq('id',id);
+  return{error};
+}

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { RecurringTab } from './features/recurring/RecurringTab';
+import { GoalsTab } from './features/goals/GoalsTab';
+import { ReviewTab } from './features/review/ReviewTab';
+import { totalMonthlyIncome } from './lib/income';
 import { dueAutologs } from './lib/recurring';
 import { BudgetTab } from './features/budget/BudgetTab';
 import { Dashboard } from './features/dashboard/Dashboard';
@@ -10,7 +13,7 @@ import { SettingsTab } from './features/settings/SettingsTab';
 import { GroceryTab } from './features/shopping/GroceryTab';
 import { ReceiptScanner } from './features/spending/ReceiptScanner';
 import { TransactionsTab } from './features/spending/TransactionsTab';
-import { apiFetchBudget, apiFetchDebts, apiFetchKidExpenses, apiFetchKids, apiFetchRecurring, apiFetchTransactions, apiImportTransactions } from './lib/api';
+import { apiFetchBudget, apiFetchDebts, apiFetchGoals, apiFetchKidExpenses, apiFetchKids, apiFetchRecurring, apiFetchTransactions, apiImportTransactions } from './lib/api';
 import { sb } from './lib/supabase';
 import { useOnline } from './lib/useOnline';
 
@@ -20,6 +23,7 @@ export function MainApp({user,profile,household}){
   const[budget,setBudget]=useState({income:0,expenses:[],paycheck_frequency:'biweekly',committed_strategy:null,committed_payment:0});
   const[kids,setKids]=useState([]);const[kidExpenses,setKidExpenses]=useState([]);
   const[recurring,setRecurring]=useState([]);
+  const[goals,setGoals]=useState([]);const[goalEntries,setGoalEntries]=useState([]);
   const[showScanner,setShowScanner]=useState(false);const[loading,setLoading]=useState(true);
   const hid=household?.id;const uid2=user?.id;
   const online=useOnline();
@@ -33,6 +37,7 @@ export function MainApp({user,profile,household}){
       apiFetchKids(hid).then(setKids),
       apiFetchKidExpenses(hid).then(setKidExpenses),
       apiFetchRecurring(hid).then(({data})=>setRecurring(data)),
+      apiFetchGoals(hid).then(({goals,entries})=>{setGoals(goals);setGoalEntries(entries)}),
     ]).finally(()=>setLoading(false));
   },[hid]);
 
@@ -69,7 +74,8 @@ export function MainApp({user,profile,household}){
   ];
 
   // money sub-tab state
-  const[moneySub,setMoneySub]=useState('budget'); // budget | paycheck | recurring
+  const[moneySub,setMoneySub]=useState('budget'); // budget | paycheck | recurring | goals | review
+  const income=(budget.income_sources||[]).length>0?totalMonthlyIncome(budget.income_sources):(parseFloat(budget.income)||0);
   // more drawer state
   const[showMore,setShowMore]=useState(false);
 
@@ -93,14 +99,14 @@ export function MainApp({user,profile,household}){
 
   // Which bnav item should appear active
   const activeBnav=
-    tab==='budget'||tab==='paycheck'||tab==='recurring'?'money':
+    ['budget','paycheck','recurring','goals','review'].includes(tab)?'money':
     ['kids','grocery','settings'].includes(tab)?'more':
     tab;
 
   // All desktop nav tabs (header)
   const DESKTOP_TABS=[
     {id:'dashboard',l:'Dashboard'},{id:'transactions',l:'Spending'},
-    {id:'budget',l:'Budget'},{id:'paycheck',l:'Paychecks'},{id:'recurring',l:'Recurring'},
+    {id:'budget',l:'Budget'},{id:'paycheck',l:'Paychecks'},{id:'recurring',l:'Recurring'},{id:'goals',l:'Goals'},{id:'review',l:'Review'},
     {id:'debts',l:'Debts'},{id:'kids',l:'Family'},
     {id:'grocery',l:'Shopping'},{id:'settings',l:'Settings'},
   ];
@@ -110,22 +116,26 @@ export function MainApp({user,profile,household}){
     // Money tab renders budget or paycheck with a sub-tab toggle at top
     if(tab==='money')return(
       <div>
-        <div style={{display:'flex',gap:6,marginBottom:16}}>
-          <button className={`btn ${moneySub==='budget'?'btn-p':'btn-s'}`} style={{flex:1}} onClick={()=>setMoneySub('budget')}>📊 Budget</button>
-          <button className={`btn ${moneySub==='paycheck'?'btn-p':'btn-s'}`} style={{flex:1}} onClick={()=>setMoneySub('paycheck')}>💰 Paychecks</button>
-          <button className={`btn ${moneySub==='recurring'?'btn-p':'btn-s'}`} style={{flex:1}} onClick={()=>setMoneySub('recurring')}>Recurring</button>
+        <div style={{display:'flex',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+          {[['budget','Budget'],['paycheck','Paychecks'],['recurring','Recurring'],['goals','Goals'],['review','Review']].map(([id,l])=>(
+            <button key={id} className={`btn sm ${moneySub===id?'btn-p':'btn-s'}`} style={{flex:'1 1 0',minWidth:64}} onClick={()=>setMoneySub(id)}>{l}</button>
+          ))}
         </div>
         {moneySub==='budget'&&<BudgetTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts} transactions={transactions} kids={kids} kidExpenses={kidExpenses}/>}
         {moneySub==='paycheck'&&<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>}
         {moneySub==='recurring'&&<RecurringTab recurring={recurring} setRecurring={setRecurring} transactions={transactions} budget={budget} householdId={hid} userId={uid2}/>}
+        {moneySub==='goals'&&<GoalsTab goals={goals} setGoals={setGoals} entries={goalEntries} setEntries={setGoalEntries} budget={budget} householdId={hid} userId={uid2}/>}
+        {moneySub==='review'&&<ReviewTab budget={budget} setBudget={setBudget} transactions={transactions} kidExpenses={kidExpenses} income={income} householdId={hid}/>}
       </div>
     );
     switch(tab){
-      case'dashboard':return<Dashboard debts={debts} transactions={transactions} budget={budget} kids={kids} kidExpenses={kidExpenses} userName={profile?.name} onOpenBudget={()=>{setMoneySub('budget');setTab('money')}} recurring={recurring} onOpenRecurring={()=>{setMoneySub('recurring');setTab('money')}}/>;
+      case'dashboard':return<Dashboard debts={debts} transactions={transactions} budget={budget} kids={kids} kidExpenses={kidExpenses} userName={profile?.name} onOpenBudget={()=>{setMoneySub('budget');setTab('money')}} recurring={recurring} onOpenRecurring={()=>{setMoneySub('recurring');setTab('money')}} onOpenReview={()=>{setMoneySub('review');setTab('money')}}/>;
       case'transactions':return<TransactionsTab transactions={transactions} setTransactions={setTransactions} householdId={hid} userId={uid2} openScanner={()=>setShowScanner(true)} budget={budget} kids={kids} kidExpenses={kidExpenses} setKidExpenses={setKidExpenses}/>;
       case'budget':return<BudgetTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts} transactions={transactions} kids={kids} kidExpenses={kidExpenses}/>;
       case'paycheck':return<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>;
       case'recurring':return<RecurringTab recurring={recurring} setRecurring={setRecurring} transactions={transactions} budget={budget} householdId={hid} userId={uid2}/>;
+      case'goals':return<GoalsTab goals={goals} setGoals={setGoals} entries={goalEntries} setEntries={setGoalEntries} budget={budget} householdId={hid} userId={uid2}/>;
+      case'review':return<ReviewTab budget={budget} setBudget={setBudget} transactions={transactions} kidExpenses={kidExpenses} income={income} householdId={hid}/>;
       case'debts':return<DebtsTab debts={debts} setDebts={setDebts} householdId={hid} budget={budget} setBudget={setBudget} transactions={transactions} setTransactions={setTransactions} userId={uid2}/>;
       case'kids':return<FamilyTab kids={kids} setKids={setKids} kidExpenses={kidExpenses} setKidExpenses={setKidExpenses} householdId={hid} userId={uid2}/>;
       case'grocery':return<GroceryTab budget={budget} setBudget={setBudget} householdId={hid} userId={uid2}/>;

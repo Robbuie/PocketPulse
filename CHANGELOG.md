@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.0 - rollover, savings goals, month in review
+
+Needs `supabase/migrations/0009_goals.sql` run in the Supabase SQL Editor
+before this version is deployed.
+
+- **Roll over unspent money.** A flexible budget line can carry what is
+  left at the end of a month into the next one, and an overspend comes off
+  the next month. Switch it on per line under Budget > Edit. It counts from
+  the month it was switched on. Home and Budget show what carried in.
+- **Savings goals** under Money > Goals: money set aside for things that do
+  not come every month (car repairs, Christmas, back to school, a trip).
+  Each goal shows what is saved, what is left, and what to put in each month
+  and each paycheck to have it ready by its date. Add money and use money
+  are kept as a history, so both of you can add without overwriting each
+  other.
+- **Month in review** under Money > Review: what was spent against the
+  budget, which lines went over and which came in under, how much was not
+  linked to any line, and what was left over from income.
+- **Adjust the budget from real spending.** The review suggests new amounts:
+  a flexible line its three-month average rounded up to $5 when that is
+  noticeably different, a bill what it actually came to when it changed.
+  Tick the ones to keep and they are saved as next month's amounts.
+- **Home offers last month's review** during the first week of each month,
+  until it is opened or closed.
+- Money's sub-tabs are now Budget, Paychecks, Recurring, Goals and Review.
+
+
 ## 0.8.0 - recurring bills and subscriptions
 
 Needs `supabase/migrations/0008_recurring.sql` run in the Supabase SQL Editor
