@@ -12,7 +12,14 @@ export function fdate(str){if(!str)return'';const d=new Date(str+'T00:00:00');re
 
 export function fshort(str){if(!str)return'';const d=new Date(str+'T00:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
 
-export function today(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+export function today(){return localDate(new Date())}
+
+// A Date as a local calendar date "YYYY-MM-DD". toISOString() would give the
+// UTC date, which is tomorrow from 8 pm onward in Eastern time.
+export function localDate(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+
+// The local calendar month "YYYY-MM" of a Date (now by default).
+export function monthKey(d=new Date()){return localDate(d).slice(0,7)}
 
 export function catIcon(cat){const k=CATS.find(c=>c===cat||c.includes(cat));return k?k.split(' ')[0]:'🧾'}
 

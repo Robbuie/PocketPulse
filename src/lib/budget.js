@@ -1,3 +1,5 @@
+import { monthKey } from './format';
+
 export function guessItemBudgetLine(itemName,budgetExpenses){
   if(!itemName||!budgetExpenses?.length)return null;
   const name=itemName.toLowerCase();
@@ -32,7 +34,7 @@ export function rollingAvgByCategory(transactions,numMonths=3){
   const months={};
   for(let i=0;i<numMonths;i++){
     const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    months[d.toISOString().slice(0,7)]=true;
+    months[monthKey(d)]=true;
   }
   const byMonthCat={};
   for(const t of transactions){
@@ -65,4 +67,35 @@ export function buildItemHistory(transactions){
     }
   }
   return Object.values(map).map(i=>({...i,merchants:[...i.merchants],avgPrice:i.totalPrice/i.times})).sort((a,b)=>b.lastDate.localeCompare(a.lastDate));
+}
+
+// What has been spent against each budget line in a month ("YYYY-MM"),
+// keyed by line id. Only transactions linked by budget_line_id count; a
+// receipt whose items carry their own lines is split across them, the rest
+// of the receipt staying on the transaction's line. Moved here unchanged
+// from BudgetTab in 0.7.0 so Home and Budget use the same numbers.
+export function spentByLine(transactions,month){
+  const map={};
+  for(const t of (transactions||[])){
+    if(!t.date?.startsWith(month))continue;
+    if(t.budget_line_id){
+      map[t.budget_line_id]=(map[t.budget_line_id]||0)+(parseFloat(t.amount)||0);
+      if(t.items?.length){
+        const itemTotal=t.items.filter(i=>i.included!==false&&i.budget_line_id).reduce((s,i)=>s+(parseFloat(i.price)||0),0);
+        if(itemTotal>0){
+          const overrides={};
+          for(const item of t.items){
+            if(item.included===false||!item.budget_line_id)continue;
+            overrides[item.budget_line_id]=(overrides[item.budget_line_id]||0)+(parseFloat(item.price)||0);
+          }
+          const unassigned=parseFloat(t.amount)-itemTotal;
+          map[t.budget_line_id]=Math.max(0,(map[t.budget_line_id]||0)-(parseFloat(t.amount)||0)+unassigned);
+          for(const[blid,amt] of Object.entries(overrides)){
+            map[blid]=(map[blid]||0)+amt;
+          }
+        }
+      }
+    }
+  }
+  return map;
 }

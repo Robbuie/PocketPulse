@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 import { KV } from '../../components/ui';
 import { apiSaveBudget } from '../../lib/api';
-import { rollingAvgByCategory } from '../../lib/budget';
+import { rollingAvgByCategory, spentByLine } from '../../lib/budget';
+import { monthPace } from '../../lib/pacing';
 import { CATS, CAT_COLORS } from '../../lib/constants';
-import { catIcon, f$, fshort, ordinal, uid } from '../../lib/format';
+import { catIcon, f$, fshort, monthKey, ordinal, uid } from '../../lib/format';
 import { totalMonthlyIncome } from '../../lib/income';
 
 export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,kidExpenses}){
@@ -29,36 +30,11 @@ export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,
     setSaving(false);
   }
 
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=monthKey();
   // Actual spending this month — keyed by budget_line_id first, then category
-  const actualByLineId=useMemo(()=>{
-    const map={};
-    for(const t of (transactions||[])){
-      if(!t.date?.startsWith(thisMonth))continue;
-      if(t.budget_line_id){
-        map[t.budget_line_id]=(map[t.budget_line_id]||0)+(parseFloat(t.amount)||0);
-        // also split item-level amounts if items have individual budget_line_ids
-        if(t.items?.length){
-          const itemTotal=t.items.filter(i=>i.included!==false&&i.budget_line_id).reduce((s,i)=>s+(parseFloat(i.price)||0),0);
-          if(itemTotal>0){
-            // items with their own budget_line_id override the tx-level split
-            const overrides={};
-            for(const item of t.items){
-              if(item.included===false||!item.budget_line_id)continue;
-              overrides[item.budget_line_id]=(overrides[item.budget_line_id]||0)+(parseFloat(item.price)||0);
-            }
-            // subtract tx-level amount, re-add split
-            const unassigned=parseFloat(t.amount)-itemTotal;
-            map[t.budget_line_id]=Math.max(0,(map[t.budget_line_id]||0)-(parseFloat(t.amount)||0)+unassigned);
-            for(const[blid,amt] of Object.entries(overrides)){
-              map[blid]=(map[blid]||0)+amt;
-            }
-          }
-        }
-      }
-    }
-    return map;
-  },[transactions,thisMonth]);
+  const actualByLineId=useMemo(()=>spentByLine(transactions,thisMonth),[transactions,thisMonth]);
+  // Daily allowance and pace for flexible lines, as on Home.
+  const paceById=useMemo(()=>Object.fromEntries(monthPace(budget.expenses,actualByLineId).flex.map(x=>[x.line.id,x])),[budget.expenses,actualByLineId]);
 
   const actualByCategory=useMemo(()=>{
     const map={};
@@ -349,9 +325,11 @@ export function BudgetTab({budget,setBudget,householdId,debts,transactions,kids,
                 <span>/ {f$(budgeted,2)}</span>
                 {over&&<span style={{color:'var(--red)',fontWeight:700}}>+{f$(actual-budgeted,2)}</span>}
                 {!over&&budgeted>0&&<span style={{color:'var(--green)'}}>{f$(budgeted-actual,2)} left</span>}
+                {!over&&paceById[e.id]?.perDay>0&&<span>{f$(paceById[e.id].perDay)}/day</span>}
+                {paceById[e.id]?.status==='ahead'&&<span style={{color:'var(--amber)',fontWeight:700}}>ahead of pace</span>}
               </div>
             </div>
-            <div className="bva-track"><div className="bva-fill" style={{width:`${pct}%`,background:over?'var(--red)':pct>80?'var(--amber)':'var(--green)'}}/></div>
+            <div className="bva-track"><div className="bva-fill" style={{width:`${pct}%`,background:over?'var(--red)':pct>80||paceById[e.id]?.status==='ahead'?'var(--amber)':'var(--green)'}}/></div>
           </div>);
         })}
         {(()=>{

@@ -102,7 +102,7 @@ export function MainApp({user,profile,household}){
       </div>
     );
     switch(tab){
-      case'dashboard':return<Dashboard debts={debts} transactions={transactions} budget={budget} kids={kids} kidExpenses={kidExpenses} userName={profile?.name}/>;
+      case'dashboard':return<Dashboard debts={debts} transactions={transactions} budget={budget} kids={kids} kidExpenses={kidExpenses} userName={profile?.name} onOpenBudget={()=>{setMoneySub('budget');setTab('money')}}/>;
       case'transactions':return<TransactionsTab transactions={transactions} setTransactions={setTransactions} householdId={hid} userId={uid2} openScanner={()=>setShowScanner(true)} budget={budget} kids={kids} kidExpenses={kidExpenses} setKidExpenses={setKidExpenses}/>;
       case'budget':return<BudgetTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts} transactions={transactions} kids={kids} kidExpenses={kidExpenses}/>;
       case'paycheck':return<PaycheckTab budget={budget} setBudget={setBudget} householdId={hid} debts={debts}/>;

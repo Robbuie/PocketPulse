@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 - left to spend
+
+No database changes.
+
+- **Home opens with what is left to spend this month** in the flexible
+  lines (groceries, gas, eating out: anything marked variable or without a
+  due day), and what that allows per day for the rest of the month.
+- **Each flexible line shows its money left and daily allowance**, most
+  urgent first, with a colored bar and a note when it is nearly used (80%),
+  over, or **ahead of pace**: spending running well ahead of how much of the
+  month has gone, while there is still time to slow down.
+- **Bills: 3 of 5 paid.** Fixed bills are listed by due day as paid, due
+  soon, or not seen yet after their due day. A bill counts as paid once
+  spending linked to its line reaches 90% of the amount.
+- The Budget screen shows the same daily allowance and pace note per line.
+- **Fixed: the month could flip early.** "This month" was worked out in UTC,
+  so from 8 pm Eastern on the last day of a month the budget, Home, debts and
+  family spending all showed the next, empty month. Dates are now local
+  everywhere.
+
+
 ## 0.6.0 - import bank and card statements
 
 Needs `supabase/migrations/0006_import_and_rules.sql` run in the Supabase SQL

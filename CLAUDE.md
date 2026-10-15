@@ -74,7 +74,9 @@ src/
     finance.js          amortize, simulatePayoff, interest, splitPayment
     income.js           income sources, monthly equivalents
     paycheck.js         pay dates, bills per period, cash flow
-    budget.js           budget line suggestions, rolling averages, item history
+    budget.js           budget line suggestions, rolling averages, item history,
+                        spentByLine (the one place spending per line is worked out)
+    pacing.js           left to spend, daily allowance, ahead of pace, bills paid
     units.js            unit conversion and price normalization
     deals.js            store deals and effective price
     receipt.js          OCR text to items
@@ -219,8 +221,15 @@ the save goes out (see `pendingPrices` in GroceryTab).
   a base unit (oz, fl oz, count) before comparing stores.
 - Payoff simulation matches the original debt tracker: minimums on every
   debt, extra on the target, a paid-off debt's minimum rolls into the next.
-- Dates are local calendar dates (`YYYY-MM-DD`). Do not use `toISOString()`
-  for "today"; it is UTC and flips the date in the evening.
+- Dates are local calendar dates (`YYYY-MM-DD`). Use `today()`,
+  `localDate(d)` and `monthKey(d)` from `lib/format.js`; never
+  `toISOString().slice(...)`, which is UTC and flipped the month after 8 pm
+  Eastern on the last day of a month until 0.7.0.
+- Spending per budget line comes from `spentByLine` only. Home, Budget and
+  pacing must never compute it separately; a test keeps it equal to the
+  legacy Budget screen's calculation.
+- Flexible line = `is_variable` or no `due_day`; bill = fixed with a due day
+  (`lineKind`). Pacing thresholds live at the top of `pacing.js`.
 - Mobile bottom navigation has exactly five items: Home, Spend, Money,
   Debts, More. New screens nest under Money or More.
 
@@ -247,8 +256,8 @@ the save goes out (see `pendingPrices` in GroceryTab).
 4. 0.5.0: manifest, icons, service worker, offline notice. Done.
    Custom domain on Netlify is the owner's step (see "Domain").
 5. 0.6.0: statement import and merchant rules. Done.
-   Then, as chosen: "left to spend" and pacing, recurring bills,
-   rollover/sinking funds/month-end review.
+   0.7.0: left to spend, daily pace, bills paid. Done.
+   Then, as chosen: recurring bills, rollover/sinking funds/month-end review.
 6. Product basics: custom SMTP for auth email, privacy policy and terms,
    account deletion, data export.
 7. Payments: Stripe Checkout, a Supabase Edge Function for webhooks,

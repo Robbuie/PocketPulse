@@ -1,21 +1,25 @@
 import { useEffect, useRef, useMemo } from 'react';
 import Chart from 'chart.js/auto';
 import { CAT_COLORS } from '../../lib/constants';
-import { catIcon, f$, fshort } from '../../lib/format';
+import { catIcon, f$, fshort, monthKey } from '../../lib/format';
+import { spentByLine } from '../../lib/budget';
 import { totalMonthlyIncome } from '../../lib/income';
+import { monthPace } from '../../lib/pacing';
+import { LeftToSpend } from './LeftToSpend';
 
-export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName}){
+export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName,onOpenBudget}){
   const totalDebt=debts.reduce((s,d)=>s+(parseFloat(d.balance)||0),0);
   // Income: prefer income_sources derived total, fall back to manual budget.income
   const incomeSources=budget.income_sources||[];
   const income=incomeSources.length>0?totalMonthlyIncome(incomeSources):(parseFloat(budget.income)||0);
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=monthKey();
   const monthTx=transactions.filter(t=>t.date?.startsWith(thisMonth));
   const monthSpend=monthTx.reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
   const monthKidSpend=kidExpenses.filter(k=>k.date?.startsWith(thisMonth)).reduce((s,k)=>s+(parseFloat(k.amount)||0),0);
   // "Left this month" = income minus everything actually spent (including logged debt payments)
   const netActual=income-monthSpend-monthKidSpend;
   const recent=transactions.slice(0,4);
+  const pace=useMemo(()=>monthPace(budget.expenses,spentByLine(transactions,thisMonth)),[budget.expenses,transactions,thisMonth]);
   const chartRef=useRef(null);const chartInst=useRef(null);
   const catSpend=useMemo(()=>{
     const map={};
@@ -38,6 +42,7 @@ export function Dashboard({debts,transactions,budget,kids,kidExpenses,userName})
     <div className="grid g4" style={{marginBottom:14}}>
       {[{label:'Total Debt',val:f$(totalDebt),color:'var(--red)'},{label:'Spent This Month',val:f$(monthSpend+monthKidSpend),color:'var(--amber)'},{label:'Left This Month',val:income>0?f$(netActual):'-',color:netActual>=0?'var(--green)':'var(--red)'},{label:'Family Spending',val:f$(monthKidSpend),color:'var(--purple)'}].map(m=>(<div key={m.label} className="mcard"><div className="mlabel">{m.label}</div><div className="mval" style={{color:m.color,fontSize:19}}>{m.val}</div></div>))}
     </div>
+    <LeftToSpend pace={pace} onOpenBudget={onOpenBudget}/>
     {budget.committed_strategy&&<div className="commit-badge"><span style={{fontSize:20}}>✅</span><div><div style={{fontWeight:700,fontSize:13}}>Committed to {budget.committed_strategy==='avalanche'?'Avalanche':'Snowball'} Plan</div><div style={{fontSize:12,color:'var(--muted)'}}>Paying {f$(budget.committed_payment||0,2)}/mo toward debt · included in budget above</div></div></div>}
     <div className="cgrid" style={{marginBottom:14}}>
       <div className="card">

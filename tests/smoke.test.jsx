@@ -144,4 +144,15 @@ describe('every screen renders with real-shaped data', () => {
     restore();
     expect(errors).toEqual([]);
   });
+
+  it('Home shows what is left to spend and the bills', async () => {
+    const { errors, restore } = await renderApp();
+    const card = screen.getByLabelText('Left to spend');
+    expect(card.textContent).toMatch(/Left to spend this month/);
+    expect(card.textContent).toMatch(/Groceries/);
+    await click(screen.getByRole('button', { name: /Bills: \d of 2 paid/ }));
+    expect(card.textContent).toMatch(/Rent/);
+    restore();
+    expect(errors).toEqual([]);
+  });
 });

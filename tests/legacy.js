@@ -28,3 +28,13 @@ export function loadLegacy(...names) {
   const src = names.map(declaration).join('\n') + `\nreturn { ${names.join(', ')} };`;
   return new Function(src)();
 }
+
+// Code that lived inside a component in the legacy file, from the line
+// starting with `start` up to `end`, wrapped as a function of `params`.
+// Used for logic that was moved out of a component into src/lib later.
+export function loadLegacyBlock(start, end, params) {
+  const i = script.indexOf(start);
+  const j = script.indexOf(end, i);
+  if (i < 0 || j < 0) throw new Error(`legacy block not found: ${start}`);
+  return new Function(...params, script.slice(i + start.length, j));
+}

@@ -3,7 +3,7 @@ import { Modal } from '../../components/ui';
 import { apiAddTransaction, apiDeleteDebt, apiSaveBudget, apiSaveDebt } from '../../lib/api';
 import { DTYPES } from '../../lib/constants';
 import { amortize, calcDebtInterest, getLastDueDate, splitPayment } from '../../lib/finance';
-import { f$, fdate, fmo, getType, ordinal, today, uid } from '../../lib/format';
+import { f$, fdate, fmo, getType, monthKey, ordinal, today, uid } from '../../lib/format';
 import { StrategiesTab } from './StrategiesTab';
 
 export function DebtsTab({debts,setDebts,householdId,budget,setBudget,transactions,setTransactions,userId}){
@@ -139,7 +139,7 @@ export function DebtsTab({debts,setDebts,householdId,budget,setBudget,transactio
       const line=debtBudgetLine(d.id);
       const payments=debtPayments(d.id);
       const isExpanded=expanded===d.id;
-      const thisMonth=new Date().toISOString().slice(0,7);
+      const thisMonth=monthKey();
       const paidThisMonth=payments.filter(p=>p.date?.startsWith(thisMonth)).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
       // Interest accrual since last due date
       const lastDue=getLastDueDate(d.due_day)||payments[0]?.date;

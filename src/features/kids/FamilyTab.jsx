@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KV, Modal } from '../../components/ui';
 import { apiAddKidExpense, apiDeleteKid, apiDeleteKidExpense, apiSaveKid, apiUpdateKidExpense } from '../../lib/api';
 import { KID_CATS, KID_COLORS, KID_EMOJIS } from '../../lib/constants';
-import { f$, fdate, today, uid } from '../../lib/format';
+import { f$, fdate, monthKey, today, uid } from '../../lib/format';
 
 export function FamilyTab({kids,setKids,kidExpenses,setKidExpenses,householdId,userId}){
   const[view,setView]=useState('list');// list | kid detail id
@@ -14,7 +14,7 @@ export function FamilyTab({kids,setKids,kidExpenses,setKidExpenses,householdId,u
   const[expForm,setExpForm]=useState({amount:'',category:KID_CATS[0],description:'',date:today()});
   const[saving,setSaving]=useState(false);
   const[deleting,setDeleting]=useState(null);
-  const thisMonth=new Date().toISOString().slice(0,7);
+  const thisMonth=monthKey();
 
   const activeKid=kids.find(k=>k.id===view);
 

@@ -1,3 +1,5 @@
+import { localDate } from './format';
+
 export function amortize(balance,annualRate,monthlyPayment,extra=0){
   const r=(parseFloat(annualRate)||0)/100/12;
   const pmt=(parseFloat(monthlyPayment)||0)+(parseFloat(extra)||0);
@@ -21,7 +23,7 @@ export function getLastDueDate(dueDay){
   let d=new Date(now.getFullYear(),now.getMonth(),parseInt(dueDay));
   d.setHours(0,0,0,0);
   if(d>now)d.setMonth(d.getMonth()-1);
-  return d.toISOString().slice(0,10);
+  return localDate(d);
 }
 
 // Calculate daily interest accrued on a balance since a given date
