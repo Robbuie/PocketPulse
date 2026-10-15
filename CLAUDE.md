@@ -121,6 +121,13 @@ insert policy; they are created only by `create_household`. Row level
 security must stay enabled on every table (it was off on `households` until
 0.3.0); Supabase's Security Advisor reports it if it is ever switched off.
 
+The Security Advisor warns that `authenticated` can execute these two
+`security definer` functions (lint 0029). That is intended: signed-in users
+must be able to create and join households, and each function checks
+`auth.uid()` itself. Any new `security definer` function gets the same
+treatment: `set search_path = public`, check the caller inside, revoke from
+`public` and `anon`, grant to `authenticated` only.
+
 `supabase/tests/` holds `shim.sql` (the Supabase pieces the migrations need,
 on plain Postgres) and per-migration access checks.
 
