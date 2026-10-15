@@ -33,7 +33,8 @@ create table profiles (
   created_at timestamptz default now()
 );
 create table debts (id uuid primary key default gen_random_uuid(), household_id uuid not null references households(id), name text);
-create table transactions (id uuid primary key default gen_random_uuid(), household_id uuid not null references households(id));
+create table transactions (id uuid primary key default gen_random_uuid(), household_id uuid not null references households(id), user_id uuid, amount numeric(10,2), merchant text, date date);
+create policy transactions_household on transactions for all using (household_id in (select household_id from profiles where id = auth.uid()));
 create table budget_config (id uuid primary key default gen_random_uuid(), household_id uuid not null unique references households(id), shopping_list jsonb);
 create table kids (id uuid primary key default gen_random_uuid(), household_id uuid not null references households(id));
 create table kid_expenses (id uuid primary key default gen_random_uuid(), household_id uuid not null references households(id));

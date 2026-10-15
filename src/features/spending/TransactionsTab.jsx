@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../../components/ui';
-import { apiAddTransaction, apiDeleteKidExpense, apiDeleteTransaction, apiUpdateTransaction } from '../../lib/api';
+import { apiAddTransaction, apiDeleteKidExpense, apiDeleteTransaction, apiFetchRules, apiUpdateTransaction } from '../../lib/api';
+import { matchRule } from '../../lib/import/merchant';
+import { ImportStatement } from './ImportStatement';
 import { buildItemHistory } from '../../lib/budget';
 import { CATS, CAT_COLORS, QUICK_CATS } from '../../lib/constants';
 import { catIcon, f$, fdate, today } from '../../lib/format';
@@ -16,6 +18,23 @@ export function TransactionsTab({transactions,setTransactions,householdId,userId
   const[editing,setEditing]=useState(null);
   const[editForm,setEditForm]=useState(null);
   const budgetExpenses=budget?.expenses||[];
+  const[showImport,setShowImport]=useState(false);
+  // Merchant rules (0.6.0) also fill in the budget line when a merchant is typed by hand.
+  const[rules,setRules]=useState([]);
+  useEffect(()=>{if(householdId)apiFetchRules(householdId).then(({data})=>setRules(data))},[householdId,showImport]);
+  function setMerchant(merchant){
+    setForm(f=>{
+      const next={...f,merchant};
+      if(f.budget_line_id)return next;
+      const rule=matchRule(rules,merchant);
+      const line=rule?.action==='line'&&budgetExpenses.find(e=>e.id===rule.budget_line_id);
+      return line?{...next,budget_line_id:line.id,category:line.category||f.category}:next;
+    });
+  }
+  function handleImported(rows){
+    if(!rows?.length)return;
+    setTransactions(prev=>{const have=new Set(prev.map(t=>t.id));return[...rows.filter(r=>!have.has(r.id)),...prev]});
+  }
 
   // Merge kid expenses into unified display list
   const mergedItems=useMemo(()=>{
@@ -127,6 +146,7 @@ export function TransactionsTab({transactions,setTransactions,householdId,userId
         {view==='list'&&<>
           <button className={`btn sm ${mode==='quick'?'btn-a':'btn-s'}`} onClick={()=>setMode(mode==='quick'?'list':'quick')}>⚡ Quick</button>
           <button className="btn btn-b sm" onClick={openScanner}>📄 Receipt</button>
+          <button className="btn btn-s sm" onClick={()=>setShowImport(true)}>Import</button>
           <button className="btn btn-p sm" onClick={()=>setMode(mode==='add'?'list':'add')}>+ Manual</button>
         </>}
         <button className={`btn sm ${view==='items'?'btn-p':'btn-s'}`} onClick={()=>setView(view==='items'?'list':'items')}>🗂 Items</button>
@@ -185,7 +205,7 @@ export function TransactionsTab({transactions,setTransactions,householdId,userId
             {budgetExpenses.map(e=><option key={e.id} value={e.id}>{e.label||e.category}</option>)}
           </select>
         </div>}
-        <div className="fr"><label>Merchant / Store</label><input placeholder="e.g. Shell, Kroger" value={form.merchant} onChange={e=>setForm(f=>({...f,merchant:e.target.value}))}/></div>
+        <div className="fr"><label>Merchant / Store</label><input placeholder="e.g. Shell, Kroger" value={form.merchant} onChange={e=>setMerchant(e.target.value)}/></div>
         <div className="fr"><label>Notes</label><input placeholder="Optional" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/></div>
         <div style={{display:'flex',gap:8}}><button className="btn btn-s" style={{flex:1}} onClick={()=>setMode('list')}>Cancel</button><button className="btn btn-p" style={{flex:2}} onClick={addTx} disabled={saving}>{saving?<span className="spinner"/>:'Save'}</button></div>
       </div>)}
@@ -224,7 +244,8 @@ export function TransactionsTab({transactions,setTransactions,householdId,userId
             </div>
           </div>
           <div style={{display:'flex',gap:5,alignItems:'center'}}>
-            <div className="tx-amt red">-{f$(t.amount,2)}</div>
+            {/* A negative amount is money back (an imported refund). */}
+            <div className={`tx-amt ${t.amount<0?'green':'red'}`}>{t.amount<0?'+':'-'}{f$(Math.abs(t.amount),2)}</div>
             <button className="btn btn-d sm" style={{padding:'3px 7px'}} onClick={e=>{e.stopPropagation();deleteTx(t.id)}} disabled={deleting===t.id}>{deleting===t.id?<span className="spinner"/>:'✕'}</button>
           </div>
         </div>);
@@ -291,5 +312,6 @@ export function TransactionsTab({transactions,setTransactions,householdId,userId
         <button className="btn btn-p" style={{flex:2}} onClick={saveEdit} disabled={saving}>{saving?<span className="spinner"/>:'Save Changes'}</button>
       </div>
     </Modal>)}
+    {showImport&&<ImportStatement householdId={householdId} userId={userId} budget={budget} onClose={()=>setShowImport(false)} onImported={handleImported}/>}
   </div>);
 }

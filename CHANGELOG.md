@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.6.0 - import bank and card statements
+
+Needs `supabase/migrations/0006_import_and_rules.sql` run in the Supabase SQL
+Editor before this version is deployed.
+
+- **Import a statement** from the Spend tab. Download transactions from the
+  bank's website as CSV, or as QFX/OFX (Quicken or Money format), and choose
+  the file. Every line is shown before anything is saved.
+- **Capital One card files are recognized as they are.** Any other CSV
+  layout is guessed from its column names and shown once to confirm; the
+  choice is remembered for that bank.
+- **Nothing is counted twice.** Lines imported before are skipped, even from
+  an overlapping export. A line that matches something already entered by
+  hand (same amount within three days) is left out and marked, so it can be
+  ticked if it really is separate.
+- **Transfers are not spending.** Card payments, transfers between
+  accounts, Zelle/Venmo and cash withdrawals are left out by default, so
+  paying the Capital One bill from Huntington does not count every purchase
+  twice. Money coming in (pay, refunds) is left out too; a ticked refund is
+  saved as money back and lowers what the budget line has spent.
+- **Merchant rules.** Choose a budget line for a merchant once and it is
+  remembered: future imports use it, other lines from the same merchant in
+  the same file follow it, and typing that merchant in Manual add fills in
+  the line. Rules can be reviewed and deleted from the import screen.
+- Refunds show as +$ in green in the spending list and on Home.
+- The app now loads up to 5,000 transactions (it stopped at 300 before),
+  so months of imported history count in the budget and history views.
+
+
 ## 0.5.0 - install it like an app
 
 No database changes.

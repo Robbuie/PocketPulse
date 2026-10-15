@@ -78,6 +78,10 @@ src/
     units.js            unit conversion and price normalization
     deals.js            store deals and effective price
     receipt.js          OCR text to items
+    import/             statement import, all pure: csv.js, values.js
+                        (dates, amounts), ofx.js, layouts.js (which column
+                        is which), merchant.js (merchant keys, rules,
+                        transfers), review.js (preview rows, ids), statement.js
   features/
     auth/ dashboard/ spending/ budget/ paycheck/ debts/ kids/ shopping/ settings/
   styles/app.css
@@ -103,7 +107,16 @@ All app data is scoped by `household_id`.
 - `profiles` (id = auth user id, email, name, household_id)
 - `debts` (balance, rate, min_payment, due_day, original_balance, note)
 - `transactions` (amount, category, merchant, date, items jsonb,
-  budget_line_id, user_id)
+  budget_line_id, user_id; since 0.6.0 also import_id, source, account).
+  A negative amount is money back (an imported refund). `import_id` is
+  unique per household: `ofx:<account>:<FITID>` or
+  `csv:<account>:<date>:<amount>:<hash of description>:<n>`, built in
+  `src/lib/import/review.js`. Changing that recipe re-imports everything
+  already imported; don't.
+- `merchant_rules` (pattern, action 'line' | 'skip', budget_line_id),
+  unique per household and pattern. A pattern is normally a merchant key.
+- `import_profiles` (signature = lower-cased header row, name, mapping):
+  which CSV column is which, per bank layout.
 - `kids`, `kid_expenses` (kid_id, amount, category, date)
 - `shopping_items` (0.4.0; id text, name, qty, unit, notes, prices jsonb,
   checked, added, created_by, updated_at by trigger). One row per item, in
@@ -174,6 +187,27 @@ only the primary key), so handlers drop unknown ids. A screen that edits a
 row while its own save is pending ignores the server copy of that row until
 the save goes out (see `pendingPrices` in GroceryTab).
 
+## Statement import
+
+- Flow (features/spending/ImportStatement.jsx): file, then the column check
+  for an unknown CSV layout, then the preview, then save. Nothing touches the
+  database before the save except loading rules, profiles, and transactions
+  in the file's date range (plus or minus three days) for duplicate checks.
+- Canonical line: `{date, description, memo, bankCategory, outflow, fitid}`
+  with outflow positive for money out. Every format is converted to this
+  first; everything after works on it alone.
+- Left out by default, with the reason shown: already imported (cannot be
+  ticked), money in, transfers and card payments (`transferReason`), merchants
+  with a skip rule, and possible duplicates of hand-entered transactions
+  (same amount, within three days; each existing one excuses one line).
+- Saves go through `apiImportTransactions`: upsert ignoring duplicates on
+  (household_id, import_id), 200 per request, so a retry is harmless.
+- Known layouts: Capital One CSV (Transaction Date, Posted Date, Card No.,
+  Description, Category, Debit, Credit). Huntington's CSV layout is not
+  confirmed; it goes through the column check once. When a real file shows
+  up, add it as a known layout with a test built from its header row and a
+  few made-up lines, never from real transactions.
+
 ## Rules that already caused bugs
 
 - A transaction counts against a budget line only through an explicit
@@ -212,11 +246,14 @@ the save goes out (see `pendingPrices` in GroceryTab).
 3. 0.4.0: `shopping_items` table, live sync, per-item saves. Done.
 4. 0.5.0: manifest, icons, service worker, offline notice. Done.
    Custom domain on Netlify is the owner's step (see "Domain").
-5. Product basics: custom SMTP for auth email, privacy policy and terms,
+5. 0.6.0: statement import and merchant rules. Done.
+   Then, as chosen: "left to spend" and pacing, recurring bills,
+   rollover/sinking funds/month-end review.
+6. Product basics: custom SMTP for auth email, privacy policy and terms,
    account deletion, data export.
-6. Payments: Stripe Checkout, a Supabase Edge Function for webhooks,
+7. Payments: Stripe Checkout, a Supabase Edge Function for webhooks,
    `subscription_status` on the household, feature gating.
-7. Capacitor build for iOS.
+8. Capacitor build for iOS.
 
 ## Conventions
 

@@ -22,7 +22,19 @@ export async function apiSaveDebt(debt,hid){
 
 export async function apiDeleteDebt(id){const{error}=await sb.from('debts').delete().eq('id',id);return{error}}
 
-export async function apiFetchTransactions(hid,limit=300){const{data}=await sb.from('transactions').select('*').eq('household_id',hid).order('date',{ascending:false}).order('created_at',{ascending:false}).limit(limit);return data||[]}
+// Newest first, in pages: Supabase returns at most 1000 rows per request,
+// and imports put several months of card and bank lines in here. The budget
+// and history views need every transaction in the months they show.
+export async function apiFetchTransactions(hid,limit=5000){
+  const out=[];
+  for(let from=0;from<limit;from+=1000){
+    const{data}=await sb.from('transactions').select('*').eq('household_id',hid).order('date',{ascending:false}).order('created_at',{ascending:false}).range(from,Math.min(from+999,limit-1));
+    if(!data?.length)break;
+    out.push(...data);
+    if(data.length<1000)break;
+  }
+  return out;
+}
 
 export async function apiAddTransaction(tx,hid,uid2){const{data,error}=await sb.from('transactions').insert({...tx,household_id:hid,user_id:uid2}).select().single();return{data,error}}
 
@@ -83,4 +95,43 @@ export function apiSubscribeShoppingItems(hid,{onInsert,onUpdate,onDelete}){
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'shopping_items'},p=>onDelete(p.old?.id))
     .subscribe();
   return()=>sb.removeChannel(ch);
+}
+
+// Statement import (migration 0006).
+export async function apiFetchTransactionsBetween(hid,from,to){
+  const{data,error}=await sb.from('transactions').select('id,date,amount,merchant,import_id').eq('household_id',hid).gte('date',from).lte('date',to);
+  return{data:data||[],error};
+}
+// Lines already imported are skipped by the database (unique household_id +
+// import_id), so a retry after a dropped connection cannot double anything.
+export async function apiImportTransactions(rows,hid,userId){
+  const inserted=[];
+  for(let i=0;i<rows.length;i+=200){
+    const chunk=rows.slice(i,i+200).map(r=>({...r,household_id:hid,user_id:userId}));
+    const{data,error}=await sb.from('transactions').upsert(chunk,{onConflict:'household_id,import_id',ignoreDuplicates:true}).select();
+    if(error)return{data:inserted,error};
+    inserted.push(...(data||[]));
+  }
+  return{data:inserted,error:null};
+}
+export async function apiFetchRules(hid){
+  const{data,error}=await sb.from('merchant_rules').select('id,pattern,action,budget_line_id').eq('household_id',hid).order('pattern');
+  return{data:data||[],error};
+}
+export async function apiSaveRules(rules,hid,userId){
+  if(!rules.length)return{data:[],error:null};
+  const{data,error}=await sb.from('merchant_rules').upsert(rules.map(r=>({...r,household_id:hid,created_by:userId})),{onConflict:'household_id,pattern'}).select('id,pattern,action,budget_line_id');
+  return{data:data||[],error};
+}
+export async function apiDeleteRule(id){
+  const{error}=await sb.from('merchant_rules').delete().eq('id',id);
+  return{error};
+}
+export async function apiFetchImportProfiles(hid){
+  const{data,error}=await sb.from('import_profiles').select('signature,name,mapping').eq('household_id',hid);
+  return{data:data||[],error};
+}
+export async function apiSaveImportProfile(profile,hid){
+  const{error}=await sb.from('import_profiles').upsert({...profile,household_id:hid},{onConflict:'household_id,signature'});
+  return{error};
 }
