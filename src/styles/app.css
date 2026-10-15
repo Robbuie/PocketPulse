@@ -198,3 +198,6 @@ textarea{resize:vertical;min-height:70px}
 .price-chip .pc-store{font-size:10px;color:var(--muted)}
 .price-chip .pc-price{font-family:var(--mono);font-size:12px;font-weight:700}
 .price-chip.best .pc-price{color:var(--green)}
+
+/* Offline notice under the header */
+.offline-bar{position:sticky;top:56px;z-index:150;background:var(--adim);border-bottom:1px solid rgba(240,160,32,.35);color:var(--amber);font-size:12px;font-weight:600;padding:8px 16px;text-align:center}

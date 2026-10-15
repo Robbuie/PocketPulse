@@ -134,4 +134,14 @@ describe('every screen renders with real-shaped data', () => {
     restore();
     expect(errors).toEqual([]);
   });
+
+  it('says so when the connection drops, and clears when it returns', async () => {
+    const { errors, restore } = await renderApp();
+    await act(async () => { window.dispatchEvent(new Event('offline')); });
+    expect(screen.getByRole('status').textContent).toMatch(/offline/);
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    expect(screen.queryByRole('status')).toBeNull();
+    restore();
+    expect(errors).toEqual([]);
+  });
 });

@@ -10,6 +10,7 @@ import { ReceiptScanner } from './features/spending/ReceiptScanner';
 import { TransactionsTab } from './features/spending/TransactionsTab';
 import { apiFetchBudget, apiFetchDebts, apiFetchKidExpenses, apiFetchKids, apiFetchTransactions } from './lib/api';
 import { sb } from './lib/supabase';
+import { useOnline } from './lib/useOnline';
 
 export function MainApp({user,profile,household}){
   const[tab,setTab]=useState('dashboard');
@@ -18,6 +19,7 @@ export function MainApp({user,profile,household}){
   const[kids,setKids]=useState([]);const[kidExpenses,setKidExpenses]=useState([]);
   const[showScanner,setShowScanner]=useState(false);const[loading,setLoading]=useState(true);
   const hid=household?.id;const uid2=user?.id;
+  const online=useOnline();
 
   useEffect(()=>{
     if(!hid)return;
@@ -117,6 +119,7 @@ export function MainApp({user,profile,household}){
       <div className="nav">{DESKTOP_TABS.map(t=><button key={t.id} className={`nav-btn${tab===t.id?' active':''}`} onClick={()=>{setShowMore(false);setTab(t.id)}}>{t.l}</button>)}</div>
       <div className="huser"><div className="avatar" onClick={()=>setTab('settings')} title="Settings">{(profile?.name||user?.email||'?')[0].toUpperCase()}</div></div>
     </div>
+    {!online&&<div className="offline-bar" role="status">You are offline. What you see may be out of date, and changes will not save until you reconnect.</div>}
     <div className="main" onClick={()=>showMore&&setShowMore(false)}>{renderTab()}</div>
 
     {/* More drawer — slides up above bottom nav */}

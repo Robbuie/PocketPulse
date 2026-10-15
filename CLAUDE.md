@@ -81,6 +81,8 @@ src/
   features/
     auth/ dashboard/ spending/ budget/ paycheck/ debts/ kids/ shopping/ settings/
   styles/app.css
+public/                 manifest, icons, sw.js (copied to dist/ as-is)
+tools/make_icons.py     draws the icons into public/
 tests/
   legacy.js             loads functions from legacy/pocketpulse.html
   finance, units, receipt tests; smoke.test.jsx renders every screen
@@ -140,6 +142,28 @@ one `*.test.sql` per migration, and `run.sh`, which applies every migration
 twice to a throwaway local Postgres and runs the checks. Each check echoes
 what it expects; read the output.
 
+## Installable app (PWA)
+
+- `public/manifest.webmanifest` and the icons in `public/`, drawn by
+  `tools/make_icons.py` (cairosvg). Change the icon there, not by hand.
+- `public/sw.js`, registered from `main.jsx` in production builds only.
+  Pages: network first with the last page as the offline fallback, so a
+  deploy is picked up on the next online open. `/assets/*`: cache first
+  (hashed names). Cross-origin requests (Supabase, unpkg for Tesseract) and
+  anything but GET pass straight through: data is never cached, and the
+  app must never show cached data as if it were current.
+- Changing caching behavior means bumping `VERSION` in `sw.js` so the old
+  caches are dropped on activate. `netlify.toml` serves `sw.js` with
+  `no-cache` so the new worker is found.
+- `useOnline` drives the offline bar in MainApp.
+
+## Domain
+
+A custom domain is set in Netlify (Domain management). When it changes,
+Supabase must know too: Authentication > URL Configuration, Site URL and
+Redirect URLs, or sign-up confirmation and password reset emails link to
+the old address.
+
 ## Realtime
 
 A table only sends changes if it is in the `supabase_realtime` publication;
@@ -186,7 +210,8 @@ the save goes out (see `pendingPrices` in GroceryTab).
 1. 0.2.0: Vite build, modules, tests, CI. Done.
 2. 0.3.0: household create/join through database functions. Done.
 3. 0.4.0: `shopping_items` table, live sync, per-item saves. Done.
-4. PWA manifest and service worker; custom domain on Netlify.
+4. 0.5.0: manifest, icons, service worker, offline notice. Done.
+   Custom domain on Netlify is the owner's step (see "Domain").
 5. Product basics: custom SMTP for auth email, privacy policy and terms,
    account deletion, data export.
 6. Payments: Stripe Checkout, a Supabase Edge Function for webhooks,

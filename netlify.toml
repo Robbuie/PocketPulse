@@ -10,3 +10,21 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# The service worker must be re-checked on every open, or a deploy can be
+# hidden behind an old copy of it.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+# Built files carry a content hash in their names, so they never change.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

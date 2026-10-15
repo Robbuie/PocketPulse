@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 - install it like an app
+
+No database changes.
+
+- **Add to Home Screen gives a proper app**: its own icon (a pulse line in
+  the app's green), full screen with no browser bars, and the name
+  PocketPulse under the icon. Works on iPhone (Safari, Share > Add to Home
+  Screen) and Android (Chrome offers Install).
+- **Opens without a connection.** The last loaded version of the app opens
+  offline, and a bar under the header says you are offline and that changes
+  will not save until you reconnect. Your data still comes only from the
+  server; nothing is stored on the phone.
+- **Updates arrive on the next open** after a deploy while online, and
+  repeat opens are faster because the app's files are kept on the phone.
+
+
 ## 0.4.0 - a shopping list two phones can share
 
 Needs `supabase/migrations/0004_shopping_items.sql` run in the Supabase SQL
